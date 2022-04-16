@@ -1,0 +1,47 @@
+[
+    {
+        "pill_name": "Vitamin A",
+        "days": [1, 3, 5],
+        "container_slot": 1,
+        "alarmList": [
+            {"time": 900, "dosage" : 2},
+            {"time": 1800, "dosage" : 2}
+        ]
+    },
+    {
+        "pill_name": "Vitamin B",
+        "days": [2, 4],
+        "container_slot": 2,
+        "alarmList": [
+            {"time": 1000, "dosage" : 1},
+            {"time": 1400, "dosage" : 2}
+        ]
+    },
+    {
+        "pill_name": "Vitamin C",
+        "days": [1, 2],
+        "container_slot": 3,
+        "alarmList":  [
+            {"time": 630, "dosage" : 1},
+            {"time": 1500, "dosage" : 1}
+        ]
+    },
+    {
+        "pill_name": "Vitamin D",
+        "days": [0, 6],
+        "container_slot": 4,
+        "alarmList":  [
+            {"time": 830, "dosage" : 4},
+            {"time": 1530, "dosage" : 1}
+        ]
+    },
+    {
+        "pill_name": "Vitamin E",
+        "days": [3, 4, 5],
+        "container_slot": 5,
+        "alarmList":  [
+            {"time": 1200, "dosage" : 2},
+            {"time": 2100, "dosage" : 3}
+        ]
+    }
+]

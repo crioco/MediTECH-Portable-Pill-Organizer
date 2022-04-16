@@ -15,4 +15,11 @@ void longPressStart2();
 void longPress2();
 void longPressStop2();
 
+void click3();
+void doubleclick3();
+void multiclick3();
+void longPressStart3();
+void longPress3();
+void longPressStop3();
+
 #endif

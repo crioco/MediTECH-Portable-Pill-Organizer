@@ -14,5 +14,7 @@
 #include <network.h>
 #include <display.h>
 #include <button.h>
+#include <spiffs_storage.h>
+#include <bluetooth.h>
 
 #endif

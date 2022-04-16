@@ -6,8 +6,9 @@ using std::vector;
 using std::find;
 
 extern bool isWiFiConnected;
-bool isBluetoothEnabled;
 bool alarmSoundOn;
+bool RTCFound;
+bool AHTFound;
 int batteryLevel = 100;
 
 extern bool btnClick1;
@@ -36,15 +37,24 @@ extern bool LedMatrixOn;
 int buzzStartMillis = 0;
 int buzzCurrentMillis = 0;
 
+int HumTempStartMillis = 0;
+int HumTempCurrentMillis = 0;
+
+float temperature;
+float humidity;
+
 // Initializes the components and variables
 
 // Initialize D3231 RTC. I2C Address 0x68
 void initRTC(){
-  if (!rtc.begin(&Wire1)){ 
+  if (!rtc.begin()){ 
     Serial.println("[Failed] Coudn't Find RTC");
+    RTCFound = false;
     Serial.flush();
     while(1) delay(10);
-  } Serial.println("[Success] RTC Found");
+  } 
+  Serial.println("[Success] RTC Found");
+  RTCFound = true;
 
   // // // Adjust Date and Time of the RTC. If the Pill Organizer is turned off, 
   // // // set the date and time from the RTC on setup once powered.
@@ -102,8 +112,11 @@ void initNetwork(){
     network->firebaseInit();
     setNTP();
   }
+  Serial.println(ESP.getFreeHeap());
 }
 
+
+// Load Data From EEPROM
 void loadEEPROM(){
 
   // Get Data from EEPROM
@@ -122,7 +135,6 @@ void loadEEPROM(){
   PillList.push_back(Pill("Pill 3", {0, 3, 2}, {{2040, 2}, {800, 1}}, 3)); 
   PillList.push_back(Pill("Pill 4", {0, 3, 2}, {{2103, 3}, {800, 1}}, 4)); 
   PillList.push_back(Pill("Pill 5", {0, 3, 2}, {{2048, 1}, {800, 1}}, 5)); 
-  
 }
 
 // --------------------------------------------------------------------------------------------------------------------------
@@ -205,7 +217,7 @@ void checkAlarm(){
 
     // Alarm
     while (currentMillis - previousMillis < ringDuration){
-      display->displayAlarm();
+      display->displayAlarm(now);
       // Stop Alarm
       if (btnMulti1 || btnMulti2){
         btnMulti1 = btnMulti2 = false;
@@ -306,29 +318,42 @@ void checkAlarm(){
 void initAHT(){
   if (aht.begin(&Wire1)) {
     Serial.println("[Success] AHT10 Found");
-    THSensor_ON = true;
+    AHTFound = true;
   } else {
     Serial.println("[Failed] AHT10 Not Found");
+    AHTFound = false;
   }
 }
 
 // Check Temp & Humidity
 void checkHumTemp(){
 
-  if (THSensor_ON){
-    sensors_event_t humidity, temp;
-    aht.getEvent(&humidity, &temp);
+  if(AHTFound){
+  HumTempCurrentMillis = millis();
+    if (HumTempCurrentMillis - HumTempStartMillis > 5000){
+      sensors_event_t humid, temp;
+      aht.getEvent(&humid, &temp);
 
-    Serial.print("Temp: "); Serial.print(temp.temperature); Serial.println(" C");
-    Serial.print("Humidity: "); Serial.print(humidity.relative_humidity); Serial.println(" %");
+      temperature = temp.temperature;
+      humidity = humid.relative_humidity;
 
-    if (temp.temperature >= tempTH || humidity.relative_humidity >= humdTH){
-      // Display Warning of Temp / Humidity
-    }
+      Serial.print("Temp: "); Serial.print(temperature); Serial.println(" C");
+      Serial.print("Humidity: "); Serial.print(humidity); Serial.println(" %");
 
-    // network->firestoreDataUpdate(temp.temperature, humidity.relative_humidity);
+      if (temperature >= tempTH || humidity >= humdTH){
+        // Display Warning of Temp / Humidity
+        Serial.println("WARNING! TEMP/HUMIDITY");
+      }
+
+      // float humidity = aht.readHumidity();
+      // float temperature = aht.readTemperature();
+
+      // Serial.print("Humidity: "); Serial.print(humidity); Serial.println('%');
+      // Serial.print("Temperature: "); Serial.println(temperature);
+
+      HumTempStartMillis = millis();
+    } 
   }
-  
 }
 
 // LED DISPLAY ---------------------------------------------------------------------------------------------------------------------------------------------------
@@ -397,7 +422,7 @@ void checkBattery(){
   ADCvalue /= SampleSize;
   float voltage = (ADCvalue * 1.9)/2047;
 
-  // Change Mapping ADCValue of 1.9 V instead of 0
+  // Change Mapping ADCValue of 1.9 V instead of 0 (1.44 V)
   batteryPercent = map(ADCvalue, 0, 2047, 0, 100);
   
   Serial.print("ADC: "); Serial.println(ADCvalue); 
@@ -406,11 +431,3 @@ void checkBattery(){
 }
 
 // Vibration Method
-
-// void displayTest(){
-//   u8g2.firstPage();
-//   do {
-//     u8g2.setFont(u8g2_font_ncenB14_tr);
-//     u8g2.drawStr(10, 35, "TESTING");
-//   } while ( u8g2.nextPage() );
-// }

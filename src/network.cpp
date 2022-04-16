@@ -15,7 +15,7 @@ bool isWiFiEnabled = false; // WiFi Enabled (When enabled reconnects WiFi when d
 bool isWiFiConnected = false; // 
 extern Display *display; 
 
-long interval = 3600000; // 1 minute in milliseconds
+long WiFiConnectingDuration = 3600000; // 1 minute in milliseconds
 Network::Network(){
     // instance = this;
 }
@@ -25,6 +25,7 @@ void WiFiEventConnected(WiFiEvent_t event, WiFiEventInfo_t info){
     Serial.println("[WiFi CONNECTED]");
 }
 // Callback when successfully assigned Local IP from Wi-Fi Network & Connects to Firestore database
+
 void WiFiEventGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
     Serial.print("LOCAL IP ADDRESS: "); Serial.println(WiFi.localIP());
     display->WiFiConnected(WiFi.localIP());
@@ -32,6 +33,7 @@ void WiFiEventGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
     delay(2000);
 }
 // Callback when disconnected from the Wi-Fi Network and attempts to reconnect
+
 void WiFiEventDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
     isWiFiConnected = false;
     display->WiFiDisconnected();
@@ -41,7 +43,7 @@ void WiFiEventDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
         WiFi.reconnect();
         unsigned long previousMillis = millis();
         unsigned long currentMillis = millis();
-        if (WiFi.status() != WL_CONNECTED && (currentMillis - previousMillis) < interval ){
+        if (WiFi.status() != WL_CONNECTED && (currentMillis - previousMillis) < WiFiConnectingDuration ){
             currentMillis = millis();
             display->WiFiReconnecting();
         }else if(WiFi.status() == WL_CONNECTED) return
@@ -54,21 +56,23 @@ void WiFiEventDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
 void FirestoreTokenStatusCallback(TokenInfo info){
     Serial.printf("[Firestore Token Info]: type = %s, status = %s\n", getTokenType(info).c_str(), getTokenStatus(info).c_str());
 }
+
 // Initializes the WI-Fi connection
 void Network::initWiFi(){   
     WiFi.onEvent(WiFiEventConnected, SYSTEM_EVENT_STA_CONNECTED);
     WiFi.onEvent(WiFiEventGotIP, SYSTEM_EVENT_STA_GOT_IP);
     WiFi.onEvent(WiFiEventDisconnected, SYSTEM_EVENT_STA_DISCONNECTED);
+    WiFi.setTxPower(WIFI_POWER_MINUS_1dBm);
 }
 
 void Network::WiFiConnect(){
     isWiFiEnabled = true;
+    display->WiFiEnabled();
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    delay(1000);
 
     unsigned long previousMillis = millis();
-    unsigned long currentMillis = millis();
-    if (WiFi.status() != WL_CONNECTED && (currentMillis - previousMillis) < interval ){
-        currentMillis = millis();
+    if (WiFi.status() != WL_CONNECTED && (millis() - previousMillis) < WiFiConnectingDuration ){
         display->WiFiConnecting();
     } delay(2000);
     if(WiFi.status() == WL_CONNECTED) return

@@ -8,10 +8,13 @@ int DAYLIGHT_OFFSET = 0;
 const char* NTP_SERVER = "ph.pool.ntp.org";
 
 RTC_DS3231 rtc;
+// AHTxx aht(AHTXX_ADDRESS_X38, AHT1x_SENSOR);
+
 Adafruit_AHTX0 aht;
 
 Network *network;
 Display *display;
+Bluetooth *bluetooth;
 
 // String hour, minute, second;
 
@@ -38,9 +41,8 @@ std::vector<Pill> PillList;
 
 // TEMP & HUMIDITY -----------------------------------------------------------------------------------------------------------
 
-bool THSensor_ON = false;
-#define tempTH 0 // Temoerature Threshold
-#define humdTH 0 // Humidity Threshold
+#define tempTH 33 // Temoerature Threshold in Celcius
+#define humdTH 75 // Humidity Threshold in Percent
 
 // {{Position Slot 1, Dosage}, {Position Slot 2, Dosage}}}
 std::vector<std::vector<int>> LEDVec;
@@ -59,9 +61,9 @@ extern const int LEDd = 26; // 13
 extern const int LEDe = 27; // 15
 
 // LED Columns ----------------------------------------------------------------------------------------------------------------
-extern const int LED1 = 16; // 0
-extern const int LED2 = 4; // 25
-extern const int LED3 = 0; // 33
-extern const int LED4 = 2; // 32
+extern const int LED1 = 17; // 0
+extern const int LED2 = 16; // 25
+extern const int LED3 = 4; // 33
+extern const int LED4 = 0; // 32
 
 #endif

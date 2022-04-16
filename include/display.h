@@ -27,8 +27,17 @@ class Display{
         void FirebaseConnected();
         void FirebaseNotConnected();
 
-        void Greeting();
+        void BluetoothEnabled();
+        void BluetoothDisabled();
+        void BluetoothReceivedData();
+
+        void HumTemp(float humidity, float temperature);
+
+        void FromPowerOn();
+        void FromReset();
         void ComponentStatus();
+
+        void PowerSaveOn(bool enabled);
 };
 
 #endif
