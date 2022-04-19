@@ -57,12 +57,15 @@ extern int nClicks2;
 extern bool isWiFiEnabled;
 extern bool isWiFiConnected;
 extern bool isBluetoothEnabled;
+extern bool bluetoothAuth;
 
 int displayCountStart = 0;
 
 extern int buzzStartMillis;
+extern int alarmSoundCounter;
 extern bool alarmSoundOn;
 extern bool alarmOn;
+
 
 bool isDeviceOpen = false;
 bool LedMatrixOn = false;
@@ -70,7 +73,7 @@ extern std::vector<std::vector<int>> LEDVec;
 
 extern float temperature;
 extern float humidity;
-
+extern int snoozeAmount;
 
 RTC_DATA_ATTR int bootCount = 0;
 
@@ -106,16 +109,18 @@ void loop_2(void * pvParameters){
     button3.tick();
 
     // Alarm Sound
-    // if (alarmSoundOn){
-    //   buzzStartMillis = millis();
-    //   while(alarmSoundOn){
-    //     alarmSound();
-    //     button1.tick();
-    //     button2.tick();
-    //   } 
-    //   digitalWrite(buzzerPin, LOW);
-    // }
-    // checkHumTemp();
+    if (alarmSoundOn){
+      buzzStartMillis = millis();
+      alarmSoundCounter = 0;
+      while(alarmSoundOn){
+        alarmSound();
+        button1.tick();
+        button2.tick();
+      } 
+      digitalWrite(buzzerPin, LOW);
+      alarmSoundCounter = 0;
+    }
+
     // Display Led Matrix
     if (LedMatrixOn){
       displayLED(LEDVec);
@@ -155,6 +160,9 @@ void setup() {
   pinMode(buzzerPin, OUTPUT);
   // pinMode(vib_pin, OUTPUT);
 
+  // ledcSetup(1, 2000, 8);
+  // ledcAttachPin(buzzerPin, 1);
+
   analogReadResolution(11);
   analogSetAttenuation(ADC_6db);
   pinMode(LiPoLevelPin, INPUT);
@@ -179,7 +187,7 @@ void setup() {
   pinMode(button1_pin, INPUT_PULLUP);
   pinMode(button2_pin, INPUT_PULLUP);
   pinMode(button3_pin, INPUT_PULLUP);
-  pinMode(REEDSwitchPin, INPUT_PULLDOWN);
+  pinMode(REEDSwitchPin, INPUT_PULLUP);
 
   button1.attachClick(click1);
   button1.attachDoubleClick(doubleclick1);
@@ -210,8 +218,10 @@ void setup() {
   initAHT();
   initSPIFFS();
   display->initDisplay();
-  readDataJSON();
-  // loadEEPROM();
+  getPillListfromJSON();
+  Serial.print("Before: ");Serial.println(snoozeAmount);
+  loadConfigJSON();
+  Serial.print("After: ");Serial.println(snoozeAmount);
 
   // ---------------------------------------------------
 
@@ -231,29 +241,19 @@ void loop() {
   // Checks Battery Level in Percentage (3.1 V - 4.2 V)
   // checkBattery();
 
+  // alarmSoundOn = true;
+
   display->displayTime();
   checkAlarm();
-
-
-  if (isBluetoothEnabled){
-    bluetooth->readData();
-  }
   checkHumTemp();
 
-  // int SampleSize = 64;
-  // int ADCvalue = 0;
-  // for (int i = 0; i < SampleSize; i++){
-  //   ADCvalue += analogRead(LiPoLevelPin);  
-  // }
-  // ADCvalue /= SampleSize;
-  // float voltage = (ADCvalue * 1.9)/2047;
-
-  // int batteryPercent = map(ADCvalue, !![value of 1.44V]!!, 2047, 0, 100);
-  
-  // Serial.print("ADC: "); Serial.println(ADCvalue); 
-  // Serial.print("Voltage: "); Serial.println(voltage);
-  // Serial.printf("Battery: %d %% \n", batteryPercent);
-  // delay(1000);
+  if (isBluetoothEnabled){
+    if (!bluetoothAuth){
+      bluetooth->readAuth();
+    } else {
+      bluetooth->readJSON();
+    } 
+  }
 
   // TURN DISPLAY ON FROM POWER SAVE
   if (btnClick1 == true || btnClick2 == true){
@@ -282,11 +282,21 @@ void loop() {
 
           Serial.println("BLUETOOTH OFF");
           bluetooth->BTDisconnect();
-          Serial.println("RESETING DEIVCE");
+          Serial.println("RESETING DEVICE");
           ESP.restart();
         } else initNetwork();
         
       }
+      break;
+
+    case 4:
+      displayPillList();
+      break;
+    case 5:
+      readFirestoreQueue();  
+      break;
+    case 6:
+      readDataStorageJSON();
       break;
     } 
     nClicks1 = 0;  

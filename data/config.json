@@ -1,0 +1,8 @@
+{
+    "WIFI_SSID" : "AN5506-04-FA_de9d0",
+    "WIFI_PASSWORD" : "12d2162f",
+    "ringDuration" : 300000,
+    "snoozeDuration" : 60000,
+    "snoozeAmount" : 3,
+    "previousAlarm" : 0
+}

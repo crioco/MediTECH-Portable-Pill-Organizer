@@ -1,8 +1,12 @@
 #include <network.h>
 #include <addons/TokenHelper.h>
+#include <spiffs_storage.h>
 
-char* WIFI_SSID = (char*)"AN5506-04-FA_de9d0"; //
-char* WIFI_PASSWORD = (char*)"12d2162f";
+// char* WIFI_SSID = (char*)"CaCO"; // AN5506-04-FA_de9d0
+// char* WIFI_PASSWORD = (char*)"tigerleo62"; // 12d2162f
+
+char* WIFI_SSID = (char*)"AN5506-04-FA_de9d0";
+char* WIFI_PASSWORD = (char*)"12d2162f"; 
 
 #define API_KEY "AIzaSyADgJBV7cD__GtL8MZN9L_c2hC6bxde-Ik"
 #define FIREBASE_PROJECT_ID "meditech-9904d"
@@ -40,13 +44,14 @@ void WiFiEventDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
     delay(2000);
     Serial.println("[WiFi DISCONNECTED]");
     if (isWiFiEnabled == true) {
-        WiFi.reconnect();
         unsigned long previousMillis = millis();
         unsigned long currentMillis = millis();
-        if (WiFi.status() != WL_CONNECTED && (currentMillis - previousMillis) < WiFiConnectingDuration ){
+        while (WiFi.status() != WL_CONNECTED && (currentMillis - previousMillis) < WiFiConnectingDuration ){
+            WiFi.reconnect();
             currentMillis = millis();
             display->WiFiReconnecting();
-        }else if(WiFi.status() == WL_CONNECTED) return
+        }
+        if(WiFi.status() == WL_CONNECTED) return;
         display->WiFiNotConnected();
         delay(2000);
     };
@@ -62,7 +67,6 @@ void Network::initWiFi(){
     WiFi.onEvent(WiFiEventConnected, SYSTEM_EVENT_STA_CONNECTED);
     WiFi.onEvent(WiFiEventGotIP, SYSTEM_EVENT_STA_GOT_IP);
     WiFi.onEvent(WiFiEventDisconnected, SYSTEM_EVENT_STA_DISCONNECTED);
-    WiFi.setTxPower(WIFI_POWER_MINUS_1dBm);
 }
 
 void Network::WiFiConnect(){
@@ -72,10 +76,10 @@ void Network::WiFiConnect(){
     delay(1000);
 
     unsigned long previousMillis = millis();
-    if (WiFi.status() != WL_CONNECTED && (millis() - previousMillis) < WiFiConnectingDuration ){
+    while (WiFi.status() != WL_CONNECTED && (millis() - previousMillis) < WiFiConnectingDuration ){
         display->WiFiConnecting();
     } delay(2000);
-    if(WiFi.status() == WL_CONNECTED) return
+    if(WiFi.status() == WL_CONNECTED) return;
     display->WiFiNotConnected();
     delay(2000);
 }
@@ -104,8 +108,12 @@ void Network::firebaseInit(){
 }
 
 // Create/Update Data into the Firestore database
-void Network::firestoreDataUpdate(DateTime alarmTime, DateTime takenTime, std::vector<std::pair<String, int>> alarmPills, int alarmState){
+void Network::firestoreDataUpdate(int alarmTimeUnix, int takenTimeUnix, std::vector<std::pair<String, int>> alarmPills, int alarmState){
     if (WiFi.status() == WL_CONNECTED && Firebase.ready()){
+
+        DateTime alarmTime = DateTime(alarmTimeUnix);
+        DateTime takenTime = DateTime(takenTimeUnix);
+
         String alarmYear, alarmMonth, alarmDay, alarmHour, alarmMinute;
         alarmYear = String(alarmTime.year());
 
@@ -200,6 +208,8 @@ void Network::firestoreDataUpdate(DateTime alarmTime, DateTime takenTime, std::v
         
         
     }
-
-    
+    // IF NOT CONNECTED TO WIFI / FIREBASE
+    else {
+        addFirestoreQueue(alarmTimeUnix, takenTimeUnix,alarmPills, alarmState);
+    }   
 }

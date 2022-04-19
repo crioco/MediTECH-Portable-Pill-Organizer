@@ -23,7 +23,7 @@ class Network{
         void firebaseInit();
         void WiFiDisconnect();
         void WiFiConnect();
-        void firestoreDataUpdate(DateTime alarmTime, DateTime takenTime, std::vector<std::pair<String, int>> alarmPills, int alarmState);
+        void firestoreDataUpdate(int alarmTimeUnix, int takenTimeUnix, std::vector<std::pair<String, int>> alarmPills, int alarmState);
 };
 
 #endif

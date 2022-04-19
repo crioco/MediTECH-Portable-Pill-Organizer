@@ -49,9 +49,9 @@ std::vector<std::vector<int>> LEDVec;
 
 // ALARM ----------------------------------------------------------------------------------------------------------------------
 
-int ringDuration = 60000; // Duration of alarm in milliseconds (5 min) 300000
-int snoozeDuration = 60000; // Interval between Alarms after snooze in milliseconds (10 min) 600000
-int snoozeAmount = 1; // Number of snoozes
+int ringDuration = 60000; // Duration of alarm in milliseconds (1 min) 60000
+int snoozeDuration = 60000; // Interval between Alarms after snooze in milliseconds (1 min) 60000
+int snoozeAmount = 2; // Number of snoozes
 
 // LED Rows -------------------------------------------------------------------------------------------------------------------
 extern const int LEDa = 32; // 2

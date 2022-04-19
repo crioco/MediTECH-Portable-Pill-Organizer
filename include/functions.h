@@ -7,7 +7,7 @@
 #define SDA_2 19 // ORANGE
 #define SCL_2 18 // GREEN
 
-#define buzzerPin 2
+#define buzzerPin 13
 #define vib_pin 0
 
 #define button1_pin 23
@@ -34,5 +34,6 @@ void alarmSound();
 void setNTP();
 void displayTest();
 void checkBattery();
+void displayPillList();
 
 #endif // ends the if statement #ifndef

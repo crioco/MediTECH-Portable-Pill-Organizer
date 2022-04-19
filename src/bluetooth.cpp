@@ -1,34 +1,69 @@
 #include <bluetooth.h>
 #include <display.h>
+#include <spiffs_storage.h>
 
 String deviceBTName = "MediTECH Device";
 bool isBluetoothEnabled;
 BluetoothSerial SerialBT;
 extern Display *display;
 
+bool bluetoothAuth = false;
+
+void callBack(esp_spp_cb_event_t event, esp_spp_cb_param_t *param){
+    if (event == ESP_SPP_SRV_OPEN_EVT){
+        Serial.println("Connected to Client.");
+    } else if (event == ESP_SPP_CLOSE_EVT){
+        Serial.println("Disconnected from Client."); 
+        bluetoothAuth = false;
+    }
+}
+
 void Bluetooth::initBluetooth(){
     SerialBT.begin(deviceBTName);
     isBluetoothEnabled = true;
-    Serial.print("Bluetooth Enabled.");
-    Serial.println(ESP.getFreeHeap());
+    Serial.println("Bluetooth Enabled.");
+    SerialBT.register_callback(callBack);
     display->BluetoothEnabled();
     delay(2000);
 }
 
 void Bluetooth::BTDisconnect(){
-    SerialBT.disconnect();
+    SerialBT.end();
     Serial.println("Bluetooth Disabled.");
     isBluetoothEnabled = false;
     display->BluetoothDisabled();
     delay(2000);
 }
-
-void Bluetooth::readData(){
-    if (Serial.available()){
-        SerialBT.write(Serial.read());
-    }
-    if (SerialBT.available()){
-        Serial.write(SerialBT.read());
+String message;
+void Bluetooth::readAuth(){
+    if (SerialBT.available() > 0){
+        message = SerialBT.readStringUntil('\n');
+        message.remove(message.length() - 1, 1);
+        Serial.println(message);
+        if (message == "69"){
+            SerialBT.println("nice.");
+            Serial.print("Authenticated.");
+            bluetoothAuth = true;
+        }
+        else {
+            SerialBT.disconnect();
+            bluetoothAuth = false;
+        }
     }
     delay(20);
+}
+
+String json;
+void Bluetooth::readJSON(){
+    if (SerialBT.available() > 0){
+        json = SerialBT.readStringUntil('\n');
+        json.remove(json.length() - 1, 1);
+        Serial.println(json);
+       if(writeDataStorageJSON(json)){
+           getPillListfromJSON();
+           SerialBT.println("Data Received Successfuly.");
+       } else {
+           SerialBT.println("Data Failed to be Received.");
+       }
+    }
 }

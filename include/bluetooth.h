@@ -8,7 +8,8 @@ class Bluetooth{
     public:
         void initBluetooth();
         void BTDisconnect();
-        void readData();
+        void readAuth();
+        void readJSON();
 };
 
 #endif

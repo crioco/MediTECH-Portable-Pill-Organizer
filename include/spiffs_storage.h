@@ -1,9 +1,25 @@
 #ifndef SPIFFS_STORAGE_H
 #define SPIFFS_STORAGE_H 
 
+#include <SPIFFS.h>
+#include <ArduinoJson.h>
+#include <map>
+#include <vector>
+#include <RTClib.h>
+#include <network.h>
+
 void initSPIFFS();
 void listAllFiles();
-void readDataJSON();
-void writeDataJSON();
+void getPillListfromJSON();
+void readDataStorageJSON();
+boolean writeDataStorageJSON(String json);
+boolean addFirestoreQueue(int alarmTimeUnix, int takenTimeUnix, std::vector<std::pair<String, int>> alarmPills, int alarmState);
+void readFirestoreQueue();
+boolean uploadFirestoreQueue();
+void updateWiFiConfig(String WIFI_SSID, String WIFI_PASSWORD);
+void updateAlarmConfig(int ringDuration, int snoozeDuration, int snoozeAmount);
+void loadConfigJSON();
+// String getFromConfigJSON(String key);
+// int getPreviousAlarm();
 
 #endif
