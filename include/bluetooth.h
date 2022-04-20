@@ -9,7 +9,7 @@ class Bluetooth{
         void initBluetooth();
         void BTDisconnect();
         void readAuth();
-        void readJSON();
+        void readBluetoothSerial();
 };
 
 #endif

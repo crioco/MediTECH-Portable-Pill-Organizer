@@ -4,8 +4,9 @@ extern Network *network;
 extern int ringDuration;
 extern int snoozeDuration; 
 extern int snoozeAmount;
-extern char* WIFI_SSID;
-extern char* WIFI_PASSWORD; 
+extern String WIFI_SSID;
+extern String WIFI_PASSWORD;
+extern DateTime previousAlarmTime;
 
 struct Pill
 {
@@ -25,6 +26,7 @@ struct Pill
 
 extern std::vector<Pill> PillList;
 
+// Initialize SPIFFS
 void initSPIFFS()
 {
     if (!SPIFFS.begin(true))
@@ -33,6 +35,7 @@ void initSPIFFS()
     }
 }
 
+// List all files in data folder
 void listAllFiles()
 {
     File root = SPIFFS.open("/");
@@ -53,7 +56,7 @@ void getPillListfromJSON()
     File file = SPIFFS.open("/data_storage.json");
     if (file)
     {
-        StaticJsonDocument<1700> doc;
+        DynamicJsonDocument doc(1700);
         DeserializationError error = deserializeJson(doc, file);
 
         if (error){
@@ -88,10 +91,12 @@ void getPillListfromJSON()
     file.close();
 }
 
+// Show Data in data_storage.json
 void readDataStorageJSON(){
     File file = SPIFFS.open("/data_storage.json");
     if (file){
-        StaticJsonDocument<1700> doc;
+
+        DynamicJsonDocument doc(1700);
         DeserializationError error = deserializeJson(doc, file);
 
         if (error)
@@ -138,22 +143,22 @@ void readDataStorageJSON(){
     file.close();
 }
 
+// Overwrite data_storage.json with data from Bluetooth
 boolean writeDataStorageJSON(String json){
     bool result = false;
-    File file = SPIFFS.open("/data_storage.json", "r");
+    File file = SPIFFS.open("/data_storage.json");
     
     DynamicJsonDocument doc(1700);
     DeserializationError error = deserializeJson(doc, json);
     if (error){
-        Serial.println("ERROR: Failed to get data from Bluetooth json.");
+        Serial.print("ERROR. Failed to get data from Bluetooth json: ");
+        Serial.println(error.c_str());
         file.close();
         return false;
     }
     file.close();
 
     file = SPIFFS.open("/data_storage.json", "w");
-    String pill_name = doc[0]["pill_name"];
-    Serial.println(pill_name);
     if (serializeJsonPretty(doc, file) && !doc.isNull()){
         Serial.println("data_storage.json Overwritten.");
         delay(2000);
@@ -166,23 +171,29 @@ boolean writeDataStorageJSON(String json){
     return result;
 }
 
+// Add Passed Alarm to be stored in Firestore upon connecting to Firebase
 boolean addFirestoreQueue(int alarmTimeUnix, int takenTimeUnix, std::vector<std::pair<String, int>> alarmPills, int alarmState){
     File outFile = SPIFFS.open("/firestore_update.json", "r");
-    StaticJsonDocument<1512> doc;
+    DynamicJsonDocument doc(1512);
     DeserializationError error = deserializeJson(doc, outFile);
     JsonArray docArray;
     if (error){
         if (error.code() == DeserializationError::EmptyInput){
             docArray = doc.to<JsonArray>();
+            Serial.println("Array created in firestore_update.json");
         }else{
-             Serial.print("ERROR in opening firestore_update.json: ");
+            Serial.print("ERROR in opening firestore_update.json: ");
             Serial.println(error.c_str());
             return false;
         }
+    }else if (doc.isNull()){
+        Serial.println("doc was NULL. Array created in firestore_update.json");
+        docArray = doc.to<JsonArray>();
     }else{
         docArray = doc.as<JsonArray>();
+        Serial.println("Array found in firestore_update.json");
     }
-    
+
     JsonObject obj = docArray.createNestedObject();
 
     // StaticJsonDocument<512> docObject;
@@ -208,22 +219,25 @@ boolean addFirestoreQueue(int alarmTimeUnix, int takenTimeUnix, std::vector<std:
 
     if (serializeJson(doc, outFile) == 0){
         Serial.println("FAILED TO WRITE IN firestore_update.json");
+        outFile.close();
         return false;
     }
     else {
         Serial.println("SUCCESSFULY WRITTEN IN firestore_update.json");
+        outFile.close();
         return true;
     }
-    outFile.close();
 }
 
+// Read data in firestore_update.json
 void readFirestoreQueue(){
     File file = SPIFFS.open("/firestore_update.json");
     if(file){
-        StaticJsonDocument<1512> doc;
+        DynamicJsonDocument doc(1512);
         DeserializationError error = deserializeJson(doc, file);
         if (error){
-            Serial.println("ERROR in reading firestore_update.json");
+            Serial.print("ERROR in reading firestore_update.json: ");
+            Serial.println(error.c_str());
         }
         else{
             Serial.println("firestore_update.json");
@@ -249,103 +263,228 @@ void readFirestoreQueue(){
                     Serial.print(it->first); Serial.print(" : ");
                     Serial.println(String(it->second));
                 }
-        }
+            }
         }
     }
     file.close();
 }
 
+// Upload Passed Alarm in firestore.update.json
 boolean uploadFirestoreQueue(){
     bool result = false;
     File file = SPIFFS.open("/firestore_update.json");
     if(file){
-        StaticJsonDocument<1512> doc;
+        DynamicJsonDocument doc(1512);
         DeserializationError error = deserializeJson(doc, file);
-        if (error && doc.isNull()){
+        if (error){
             Serial.println("ERROR in reading firestore_update.json");
-        }
-        Serial.println("Uploading Queued Data to Firestore...");
-        JsonArray array = doc.as<JsonArray>();
-        for (JsonObject obj : array){
-            int alarmTime = obj["alarmTime"];
-            int takenTime = obj["takenTime"];
-            int alarmState = obj["alarmState"];
-            JsonArray pillArray = obj["alarmPills"];
-            
-            std::vector<std::pair<String, int>> pillVector;
-            for (JsonObject alarmObj: pillArray){
-                String pillName = alarmObj["pill_name"];
-                int dosage = alarmObj["dosage"];
-                pillVector.push_back(std::make_pair(pillName, dosage));
-            }
-
-            Serial.println("Alarm Time: " + DateTime(alarmTime).timestamp());
-            Serial.println("Taken Time: " + DateTime(takenTime).timestamp());
-            Serial.println("Alarm State: " + String(alarmState));
-            Serial.print("Pill Map: ");
-
-            network->firestoreDataUpdate(alarmTime, takenTime, pillVector, alarmState);
-            delay(500);
-        }
-
-        File fileClear = SPIFFS.open("/firestore_update.json", "w");
-        doc.clear();
-        if (serializeJson(doc, fileClear) == 0){
-            Serial.println("FAILED TO WRITE IN firestore_update.json");
             result = false;
         }
-        else {
-            Serial.println("Clear firestore_update.json");
-            result = true;
+        else if (!doc.isNull()){
+            Serial.println("Uploading Queued Data to Firestore...");
+            JsonArray array = doc.as<JsonArray>();
+            for (JsonObject obj : array){
+                int alarmTime = obj["alarmTime"];
+                int takenTime = obj["takenTime"];
+                int alarmState = obj["alarmState"];
+                JsonArray pillArray = obj["alarmPills"];
+                
+                std::vector<std::pair<String, int>> pillVector;
+                for (JsonObject alarmObj: pillArray){
+                    String pillName = alarmObj["pill_name"];
+                    int dosage = alarmObj["dosage"];
+                    pillVector.push_back(std::make_pair(pillName, dosage));
+                }
+
+                Serial.println("Alarm Time: " + DateTime(alarmTime).timestamp());
+                Serial.println("Taken Time: " + DateTime(takenTime).timestamp());
+                Serial.println("Alarm State: " + String(alarmState));
+                Serial.println("Pill Map: ");
+
+                if(!network->firestoreDataUpdate(alarmTime, takenTime, pillVector, alarmState)){
+                    Serial.println("Failed to Upload to Firestore. Try again later.");
+                    return false;
+                }
+                delay(500);
+            }
+
+            File fileClear = SPIFFS.open("/firestore_update.json", "w");
+            doc.clear();
+            if (serializeJson(doc, fileClear) == 0){
+                Serial.println("FAILED TO WRITE IN firestore_update.json");
+                result = false;
+            }
+            else {
+                Serial.println("Clear firestore_update.json");
+                result = true;
+            }
+            fileClear.close();
         }
-        fileClear.close();
     }
     file.close();
     return result;
 }
 
-// boolean updateWiFiConfig (String wifiID, String wifiPassword){
-//     File file = SPIFFS.open("/config.json", "r");
-//     DynamicJsonDocument doc(256);
-//     DeserializationError error = deserializeJson(doc, file);
-//     if (error){
-//         Serial.print("ERROR unable to read config.json: ");
-//         Serial.println(error.c_str());
-//         return false;
-//     }
-//     doc["WIFI_SSID"] = wifiID;
-//     doc["WIFI_PASSWORD"] = password;
-//     file.close();
+boolean updateWiFiConfig (String json){
+    DynamicJsonDocument doc(312);
+    DeserializationError error = deserializeJson(doc, json);
+    if (error){
+        Serial.print("ERROR unable to read received json: ");
+        Serial.println(error.c_str());
+        return false;
+    }
+    String SSID = doc["WIFI_SSID"];
+    String Password = doc["WIFI_PASSWORD"];
 
-//     file = SPIFFS.open("/config.json", "w");
-//     if(serializeJson(doc, file) == 0){
-//         Serial.println("Failed to rewrite config.json");
-//         return false;
-//     }
-//     file.close();
-//     return true;
-// }
+    Serial.println("RECEIVED: " + SSID + " | " + Password);
 
-// boolean updateAlarmConfig(int ringDuration, int snoozeDuration, int snoozeAmount){
-//     return false;
+    File file = SPIFFS.open("/config.json", "r");
+    error = deserializeJson(doc, file);
+    if (error){
+        Serial.print("ERROR unable to read config.json: ");
+        Serial.println(error.c_str());
+        file.close();
+        return false;
+    }
+    int rDuration = doc["ringDuration"];
+    int sDuration = doc["snoozeDuration"];
+    int sAmount = doc["snoozeAmount"];
+    int prevAlarm = doc["previousAlarm"];
+    file.close();
 
-// }
+    file = SPIFFS.open("/config.json", "w");
+    doc.clear();
+    JsonObject obj = doc.to<JsonObject>();
+    obj["WIFI_SSID"] = SSID;
+    obj["WIFI_PASSWORD"] = Password;
+    obj["ringDuration"] = rDuration;
+    obj["snoozeDuration"] = sDuration;
+    obj["snoozeAmount"] = sAmount;
+    obj["previousAlarm"] = prevAlarm;
+    if(serializeJson(doc, file) == 0){
+        Serial.println("Failed to serialize config.json.");
+        file.close();
+        return false;
+    }
+     Serial.println("Updated WiFi Config in config.json.");
+    file.close();
+    return true;
+}
 
+boolean updateAlarmConfig(String json){
+    DynamicJsonDocument doc(312);
+    DeserializationError error = deserializeJson(doc, json);
+    if (error){
+        Serial.print("ERROR unable to read received json: ");
+        Serial.println(error.c_str());
+        return false;
+    }
+    int rDuration = doc["ringDuration"];
+    int sDuration = doc["snoozeDuration"];
+    int sAmount = doc["snoozeAmount"];
+
+    Serial.println("RECEIVED: " + String(rDuration) + " | " + String(sDuration) + " | " + String(sAmount));
+
+    File file = SPIFFS.open("/config.json", "r");
+    error = deserializeJson(doc, file);
+    if (error){
+        Serial.print("ERROR unable to read config.json: ");
+        Serial.println(error.c_str());
+        file.close();
+        return false;
+    }
+    String SSID = doc["WIFI_SSID"];
+    String Password = doc["WIFI_PASSWORD"];
+    int prevAlarm = doc["previousAlarm"];
+    file.close();
+
+    file = SPIFFS.open("/config.json", "w");
+    doc.clear();
+    JsonObject obj = doc.to<JsonObject>();
+    obj["WIFI_SSID"] = SSID;
+    obj["WIFI_PASSWORD"] = Password;
+    obj["ringDuration"] = rDuration;
+    obj["snoozeDuration"] = sDuration;
+    obj["snoozeAmount"] = sAmount;
+    obj["previousAlarm"] = prevAlarm;
+    if(serializeJson(doc, file) == 0){
+        Serial.println("Failed to serialize config.json.");
+        file.close();
+        return false;
+    }
+     Serial.println("Updated Alarm Config in config.json.");
+    file.close();
+    return true;
+}
+
+boolean storePrevAlarm(int prevAlarmUnix){
+    DynamicJsonDocument doc(312);
+    File file = SPIFFS.open("/config.json", "r");
+    DeserializationError error = deserializeJson(doc, file);
+    if (error){
+        Serial.print("ERROR unable to read config.json: ");
+        Serial.println(error.c_str());
+        file.close();
+        return false;
+    }
+    String SSID = doc["WIFI_SSID"];
+    String Password = doc["WIFI_PASSWORD"];
+    int rDuration = doc["ringDuration"];
+    int sDuration = doc["snoozeDuration"];
+    int sAmount = doc["snoozeAmount"];
+    file.close();
+
+    file = SPIFFS.open("/config.json", "w");
+    doc.clear();
+    JsonObject obj = doc.to<JsonObject>();
+    obj["WIFI_SSID"] = SSID;
+    obj["WIFI_PASSWORD"] = Password;
+    obj["ringDuration"] = rDuration;
+    obj["snoozeDuration"] = sDuration;
+    obj["snoozeAmount"] = sAmount;
+    obj["previousAlarm"] = prevAlarmUnix;
+    if(serializeJson(doc, file) == 0){
+        Serial.println("Failed to serialize config.json.");
+        file.close();
+        return false;
+    }
+     Serial.println("Updated PreviousAlarm in config.json.");
+    file.close();
+    return true;
+}
+
+// Update WiFi & Alarm Settings loaded using configurations in config.json
 void loadConfigJSON(){
     File file = SPIFFS.open("/config.json");
-    DynamicJsonDocument doc(256);
+    DynamicJsonDocument doc(312);
     DeserializationError error = deserializeJson(doc, file);
     if (error){
         Serial.print("ERROR unable to load configurations from config.json: ");
         Serial.println(error.c_str());
         return;
     }
-    
-    WIFI_SSID = (char*)(doc["WIFI_SSID"].as<String>()).c_str();
-    WIFI_PASSWORD = (char*)(doc["WIFI_PASSWORD"].as<String>()).c_str();
-    ringDuration = doc["ringDuration"].as<int>();
-    snoozeDuration = doc["snoozeDuration"].as<int>();
-    snoozeAmount = doc["snoozeAmount"].as<int>();
+
+    String ID = doc["WIFI_SSID"];
+    String PASS = doc["WIFI_PASSWORD"];
+    int rDuration = doc["ringDuration"];
+    int sDuration = doc["snoozeDuration"];
+    int sAmount = doc["snoozeAmount"];
+    int prevAlarmUnix = doc["previousAlarm"];
+
+    WIFI_SSID = ID;
+    WIFI_PASSWORD = PASS;
+    ringDuration = rDuration;
+    snoozeDuration = sDuration;
+    snoozeAmount = sAmount;
+    previousAlarmTime = DateTime(prevAlarmUnix);
+
+    Serial.println(WIFI_SSID);
+    Serial.println(WIFI_PASSWORD);
+    Serial.println(ringDuration);
+    Serial.println(snoozeDuration);
+    Serial.println(snoozeAmount);
+    Serial.println(previousAlarmTime.timestamp());
+
 
     Serial.println("Data loaded from config.json");
     file.close();

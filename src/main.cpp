@@ -53,6 +53,7 @@ extern int pressDuration3;
 
 extern int nClicks1;
 extern int nClicks2;
+extern int nClicks3;
 
 extern bool isWiFiEnabled;
 extern bool isWiFiConnected;
@@ -73,7 +74,6 @@ extern std::vector<std::vector<int>> LEDVec;
 
 extern float temperature;
 extern float humidity;
-extern int snoozeAmount;
 
 RTC_DATA_ATTR int bootCount = 0;
 
@@ -153,6 +153,7 @@ void setup() {
 
   esp_sleep_enable_ext0_wakeup((gpio_num_t)button3_pin, 0);
   rtc_gpio_pullup_en((gpio_num_t)button3_pin);
+
   ++bootCount;
   Serial.printf("Booted %d times\n", bootCount);
   print_wakeup_reason();
@@ -163,6 +164,7 @@ void setup() {
   // ledcSetup(1, 2000, 8);
   // ledcAttachPin(buzzerPin, 1);
 
+  // LiPo Battery Level
   analogReadResolution(11);
   analogSetAttenuation(ADC_6db);
   pinMode(LiPoLevelPin, INPUT);
@@ -219,12 +221,11 @@ void setup() {
   initSPIFFS();
   display->initDisplay();
   getPillListfromJSON();
-  Serial.print("Before: ");Serial.println(snoozeAmount);
   loadConfigJSON();
-  Serial.print("After: ");Serial.println(snoozeAmount);
 
   // ---------------------------------------------------
 
+  // If restarted after WiFi on while BLE on
   EEPROM.begin(1);
   if (EEPROM.read(0) == 1){
     EEPROM.write(0, 0);
@@ -232,14 +233,16 @@ void setup() {
     initNetwork();
   }
 
+  // Turn on Display
   displayCountStart = millis();
 }
 
 int x = 1;
-
+extern int checkBatteryStart;
 void loop() {
-  // Checks Battery Level in Percentage (3.1 V - 4.2 V)
-  // checkBattery();
+  // Checks Battery Level in Percentage (3.3 V - 4.11 V)
+  
+  checkBattery();
 
   // alarmSoundOn = true;
 
@@ -251,7 +254,7 @@ void loop() {
     if (!bluetoothAuth){
       bluetooth->readAuth();
     } else {
-      bluetooth->readJSON();
+      bluetooth->readBluetoothSerial();
     } 
   }
 
@@ -267,7 +270,7 @@ void loop() {
   }
 
   // WiFi ON/OFF
-  if (btnMulti1 == true){
+  if (btnMulti1){
     DisplayOn();
     btnMulti1 = false;
     switch (nClicks1)
@@ -284,8 +287,7 @@ void loop() {
           bluetooth->BTDisconnect();
           Serial.println("RESETING DEVICE");
           ESP.restart();
-        } else initNetwork();
-        
+        } else initNetwork();    
       }
       break;
 
@@ -303,7 +305,7 @@ void loop() {
   }
 
   // BLUETOOTH ON/OFF
-  if (btnMulti2 == true){
+  if (btnMulti2){
     DisplayOn();
     btnMulti2 = false;
     switch (nClicks2)
@@ -319,8 +321,24 @@ void loop() {
         ESP.restart();
       }
       break;
+    case 5:
+      Serial.println("Uploading Queue to Firestore");
+      uploadFirestoreQueue();
+      break;
     }
     nClicks2 = 0;
+  }
+
+  // RESTART
+  if (btnMulti3){
+    btnMulti3 = false;
+    switch (nClicks3)
+    {
+    case 3:
+      ESP.restart();
+      break;
+    }
+    nClicks3 = 0;
   }
 
   // TURN DEEP SLEEP ON

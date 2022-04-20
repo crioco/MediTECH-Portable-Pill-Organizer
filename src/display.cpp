@@ -4,7 +4,7 @@ U8G2_SH1106_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE); // 
 
 extern bool isWiFiConnected;
 extern bool isBluetoothEnabled;
-extern char* WIFI_SSID;
+extern String WIFI_SSID;
 extern const char* NTP_SERVER;
 
 extern char dayOfWeek[7][4];
@@ -32,7 +32,7 @@ void Display::initDisplay(){
         FromReset();
     }
 
-    delay(2000);
+    delay(4000);
     ComponentStatus();
     delay(4000);
 }
@@ -113,19 +113,19 @@ void Display::displayTime(){
         
         if (batteryLevel >= 90){
             u8g2.drawGlyph(5, 8, 57940);
-        }else if (batteryLevel >= 80 || batteryLevel < 90){
+        }else if (batteryLevel >= 80 && batteryLevel < 90){
             u8g2.drawGlyph(5, 8, 57939);
-        }else if (batteryLevel >= 70 || batteryLevel < 80){
+        }else if (batteryLevel >= 70 && batteryLevel < 80){
             u8g2.drawGlyph(5, 8, 57938);
-        }else if (batteryLevel >= 60 || batteryLevel < 70){
+        }else if (batteryLevel >= 60 && batteryLevel < 70){
             u8g2.drawGlyph(5, 8, 57937);
-        }else if (batteryLevel >= 50 || batteryLevel < 60){
+        }else if (batteryLevel >= 50 && batteryLevel < 60){
             u8g2.drawGlyph(5, 8, 57936);
-        }else if (batteryLevel >= 40 || batteryLevel < 50){
+        }else if (batteryLevel >= 40 && batteryLevel < 50){
             u8g2.drawGlyph(5, 8, 57935);
-        }else if (batteryLevel >= 30 || batteryLevel < 40){
+        }else if (batteryLevel >= 30 && batteryLevel < 40){
             u8g2.drawGlyph(5, 8, 57934);
-        }else if (batteryLevel >= 20 || batteryLevel < 30){
+        }else if (batteryLevel >= 20 && batteryLevel < 30){
             u8g2.drawGlyph(5, 8, 57933);
         }else{
             u8g2.drawGlyph(5, 8, 57932);
@@ -225,7 +225,7 @@ void Display::WiFiConnected(IPAddress IP){
     do {
         u8g2.setFont(u8g2_font_helvB08_tr);
         u8g2.drawStr(22, 20, "[CONNECTED]");
-        u8g2.drawStr(5, 35, WIFI_SSID);
+        u8g2.drawStr(5, 35, WIFI_SSID.c_str());
         u8g2.drawStr(10, 50, IP_Address.c_str());
     } while (u8g2.nextPage());
 }

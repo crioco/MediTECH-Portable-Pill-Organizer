@@ -16,10 +16,9 @@ boolean writeDataStorageJSON(String json);
 boolean addFirestoreQueue(int alarmTimeUnix, int takenTimeUnix, std::vector<std::pair<String, int>> alarmPills, int alarmState);
 void readFirestoreQueue();
 boolean uploadFirestoreQueue();
-void updateWiFiConfig(String WIFI_SSID, String WIFI_PASSWORD);
-void updateAlarmConfig(int ringDuration, int snoozeDuration, int snoozeAmount);
+boolean updateWiFiConfig(String json);
+boolean updateAlarmConfig(String json);
 void loadConfigJSON();
-// String getFromConfigJSON(String key);
-// int getPreviousAlarm();
+boolean storePrevAlarm(int prevAlarmUnix);
 
 #endif

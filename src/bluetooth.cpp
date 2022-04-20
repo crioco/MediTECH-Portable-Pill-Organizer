@@ -40,9 +40,9 @@ void Bluetooth::readAuth(){
         message = SerialBT.readStringUntil('\n');
         message.remove(message.length() - 1, 1);
         Serial.println(message);
-        if (message == "69"){
-            SerialBT.println("nice.");
-            Serial.print("Authenticated.");
+        if (message == "69"){ // nice
+            SerialBT.println("Connection Authenticated.");
+            Serial.println("Authenticated.");
             bluetoothAuth = true;
         }
         else {
@@ -54,16 +54,46 @@ void Bluetooth::readAuth(){
 }
 
 String json;
-void Bluetooth::readJSON(){
+void Bluetooth::readBluetoothSerial(){
     if (SerialBT.available() > 0){
         json = SerialBT.readStringUntil('\n');
         json.remove(json.length() - 1, 1);
-        Serial.println(json);
-       if(writeDataStorageJSON(json)){
-           getPillListfromJSON();
-           SerialBT.println("Data Received Successfuly.");
-       } else {
-           SerialBT.println("Data Failed to be Received.");
-       }
+        char mode = json.charAt(0);
+        json.remove(0,1);
+        // Serial.println("mode: " + mode);
+        Serial.println("json: " + json);
+        switch (mode)
+        {
+        case '1': // data_storage.json
+            if (writeDataStorageJSON(json)){
+                getPillListfromJSON();
+                SerialBT.println("Pill Settings Updated.");
+            } else {
+                SerialBT.println("Failed to Update Data Storage.");
+            }
+            break;
+        
+        case '2': // WiFi Settings
+            if(updateWiFiConfig(json)){
+                loadConfigJSON();
+                SerialBT.println("WiFi Settings Updated.");
+            }else{
+                SerialBT.println("Failed to Update WiFi Settings.");
+            }
+            break;
+
+        case '3': // Alarm Settings
+            if(updateAlarmConfig(json)){
+                loadConfigJSON();
+                SerialBT.println("Alarm Settings Updated.");
+            }else{
+                SerialBT.println("Failed to Update Alarm Settings.");
+            }
+            break;
+        
+        default:
+            Serial.println("ECHO: " + json);
+            break;
+        }
     }
 }

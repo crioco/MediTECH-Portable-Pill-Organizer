@@ -2,11 +2,14 @@
 #include <addons/TokenHelper.h>
 #include <spiffs_storage.h>
 
-// char* WIFI_SSID = (char*)"CaCO"; // AN5506-04-FA_de9d0
-// char* WIFI_PASSWORD = (char*)"tigerleo62"; // 12d2162f
+// char* WIFI_SSID = (char*)"CaCO"; //
+// char* WIFI_PASSWORD = (char*)"tigerleo62"; //
 
-char* WIFI_SSID = (char*)"AN5506-04-FA_de9d0";
-char* WIFI_PASSWORD = (char*)"12d2162f"; 
+// String WIFI_SSID = "AN5506-04-FA_de9d0";
+// String WIFI_PASSWORD = "12d2162f"; 
+
+String WIFI_SSID = "";
+String WIFI_PASSWORD = ""; 
 
 #define API_KEY "AIzaSyADgJBV7cD__GtL8MZN9L_c2hC6bxde-Ik"
 #define FIREBASE_PROJECT_ID "meditech-9904d"
@@ -72,7 +75,7 @@ void Network::initWiFi(){
 void Network::WiFiConnect(){
     isWiFiEnabled = true;
     display->WiFiEnabled();
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    WiFi.begin(WIFI_SSID.c_str(), WIFI_PASSWORD.c_str());
     delay(1000);
 
     unsigned long previousMillis = millis();
@@ -108,7 +111,7 @@ void Network::firebaseInit(){
 }
 
 // Create/Update Data into the Firestore database
-void Network::firestoreDataUpdate(int alarmTimeUnix, int takenTimeUnix, std::vector<std::pair<String, int>> alarmPills, int alarmState){
+boolean Network::firestoreDataUpdate(int alarmTimeUnix, int takenTimeUnix, std::vector<std::pair<String, int>> alarmPills, int alarmState){
     if (WiFi.status() == WL_CONNECTED && Firebase.ready()){
 
         DateTime alarmTime = DateTime(alarmTimeUnix);
@@ -184,27 +187,27 @@ void Network::firestoreDataUpdate(int alarmTimeUnix, int takenTimeUnix, std::vec
         // }
 
         // Creates a new Document in Firestore database
-        if(Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID,"", documentPath.c_str(), content.raw())){
-            Serial.printf("ok\ndocument created\n%s\n\n", fbdo.payload().c_str());
-            return;
-        }else{
-            Serial.println(fbdo.errorReason());
-        }
+        // if(Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID,"", documentPath.c_str(), content.raw())){
+        //     Serial.printf("ok\ndocument created\n%s\n\n", fbdo.payload().c_str());
+        //     return true;
+        // }else{
+        //     Serial.println(fbdo.errorReason());
+        //     return false;
+        // }
         
-        // int uploadStartMillis = millis();
-        // int currentMillis = millis();
+        int uploadStartMillis = millis();
         
-        // // Creates a new Document in Firestore database
-        // while(currentMillis - uploadStartMillis < 120000){
-        //     currentMillis = millis();
-
-        //     if (Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID,"", documentPath.c_str(), content.raw())){
-        //         Serial.printf("[Success] Document Created in Firestore.\n%s\n\n", fbdo.payload().c_str());
-        //         return;
-        //     } else Serial.println(fbdo.errorReason());
-
-        //     delay(3000);
-        // } Serial.println("[Failed] Unable to Create Document in Firestore.");
+        // Creates a new Document in Firestore database
+        while(millis() - uploadStartMillis < 60000){
+            if (Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID,"", documentPath.c_str(), content.raw())){
+                Serial.printf("[Success] Document Created in Firestore.\n%s\n\n", fbdo.payload().c_str());
+                return true;
+            } else Serial.println(fbdo.errorReason());
+            delay(3000);
+        } 
+        
+        Serial.println("[Failed] Unable to Create Document in Firestore.");
+        return false;
         
         
     }
