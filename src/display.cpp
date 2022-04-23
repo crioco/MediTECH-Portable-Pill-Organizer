@@ -5,7 +5,6 @@ U8G2_SH1106_128X64_NONAME_1_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE); // 
 extern bool isWiFiConnected;
 extern bool isBluetoothEnabled;
 extern String WIFI_SSID;
-extern const char* NTP_SERVER;
 
 extern char dayOfWeek[7][4];
 extern char months[12][4];
@@ -14,6 +13,7 @@ extern int batteryLevel;
 extern bool RTCFound;
 extern bool AHTFound;
 
+extern int displayCountStart;
 extern RTC_DS3231 rtc;
 
 void Display::initDisplay(){
@@ -26,22 +26,22 @@ void Display::initDisplay(){
     }
      
     esp_reset_reason_t reason = esp_reset_reason();
-    if (reason == ESP_RST_POWERON){
-        FromPowerOn();
-    } else if (reason == ESP_RST_SW){
+    if (reason == ESP_RST_SW){
         FromReset();
+    } else{
+        FromPowerOn();
     }
 
     delay(4000);
     ComponentStatus();
     delay(4000);
 }
-
 void Display::PowerSaveOn(bool enabled){
     if (enabled){
         u8g2.setPowerSave(1);
     }else{
         u8g2.setPowerSave(0);
+        displayCountStart = millis();
     }
 }
 
@@ -91,13 +91,8 @@ void Display::displayTime(){
         }
 
         // DATE
-        // u8g2.setFont(u8g2_font_ncenB08_tr);
-        // u8g2.drawStr(75, 50, date.c_str());
-        // u8g2.drawStr(75, 60, String(now.year()).c_str());
-
-        // DATE
         u8g2.setFont(u8g2_font_helvB10_tr);
-        u8g2.drawStr(50, 59, date.c_str());
+        u8g2.drawStr(50, 60, date.c_str());
 
         // DAY OF WEEK
         // u8g2.setFont(u8g2_font_ncenB18_tr);
@@ -149,14 +144,6 @@ void Display::displayTime(){
     // vTaskDelay(1000 / portTICK_PERIOD_MS);
 }
 
-void Display::displayText(String text){
-    u8g2.firstPage();
-    do {
-        u8g2.setFont(u8g2_font_ncenB10_tr);
-        u8g2.drawStr(5, 35, text.c_str());
-    } while (u8g2.nextPage());
-}
-
 void Display::displayAlarm(DateTime time){
     int x = 0;
     String hour, minute, ftime;
@@ -168,118 +155,143 @@ void Display::displayAlarm(DateTime time){
     if (time.hour() < 12) fTime += " AM";
     else fTime += " PM";
 
-    if (time.twelveHour() < 10) x = 30;
-    else x = 25;
+    if (time.twelveHour() < 10) x = 25;
+    else x = 20;
 
     u8g2.firstPage();
     do {
-        u8g2.setFont(u8g2_font_open_iconic_app_4x_t);
-        u8g2.drawGlyph(48, 37, 69);
+        u8g2.setFont(u8g2_font_streamline_interface_essential_alert_t);
+        u8g2.drawGlyph(53, 30, 50); // Alarm Clock
         u8g2.setFont(u8g2_font_ncenB14_tr);
-        u8g2.drawStr(x, 60, fTime.c_str());
+        u8g2.drawStr(x, 56, fTime.c_str());
     } while (u8g2.nextPage());
 }
 
 // WiFi ---------------------------------------------------------------------
 
 void Display::WiFiEnabled(){
+    PowerSaveOn(false);
     u8g2.firstPage();
     do {
-        u8g2.setFont(u8g2_font_helvB08_tr);
-        u8g2.drawStr(30, 25, "[ENABLED]");
-        u8g2.drawStr(35, 45, "WiFi ON.");
+        u8g2.setFont(u8g2_font_streamline_interface_essential_other_t);
+        u8g2.drawGlyph(53, 26, 66); // ON Switch
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(35, 50, "WiFi ON");
     } while (u8g2.nextPage());   
 }
 
 void Display::WiFiDisabled(){
+    PowerSaveOn(false);
     u8g2.firstPage();
     do {
-        u8g2.setFont(u8g2_font_helvB08_tr);
-        u8g2.drawStr(28, 25, "[DISABLED]");
-        u8g2.drawStr(33, 45, "WiFi OFF.");  
+        u8g2.setFont(u8g2_font_streamline_interface_essential_other_t);
+        u8g2.drawGlyph(53, 26, 65); // OFF Switch
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(32, 50, "WiFi OFF");  
     } while (u8g2.nextPage()); 
 
 }
 
 void Display::WiFiConnecting(){
+    PowerSaveOn(false);
     u8g2.firstPage();
     do {
         u8g2.setFont(u8g2_font_helvB10_tr);
-        u8g2.drawStr(10, 25, "Connecting to");
-        u8g2.drawStr(40, 45, "WiFi...");
+        u8g2.drawStr(13, 30, "Connecting to");
+        u8g2.drawStr(41, 50, "WiFi...");
     } while (u8g2.nextPage());
 }
 
 void Display::WiFiReconnecting(){
+    PowerSaveOn(false);
     u8g2.firstPage();
     do {
         u8g2.setFont(u8g2_font_helvB10_tr);
-        u8g2.drawStr(10, 25, "Reconnecting");
-        u8g2.drawStr(30, 45, "to WiFi...");
+        u8g2.drawStr(13, 30, "Reconnecting");
+        u8g2.drawStr(33, 50, "to WiFi...");
     } while (u8g2.nextPage());
 }
 
-void Display::WiFiConnected(IPAddress IP){
-    String IP_Address = "IP: " + IP.toString();
+void Display::WiFiConnected(){
+    PowerSaveOn(false);
     u8g2.firstPage();
     do {
+        int x = (128 - WIFI_SSID.length()*6) / 2;
+        u8g2.setFont(u8g2_font_streamline_interface_essential_wifi_t);
+        u8g2.drawGlyph(53, 25, 48); // WiFi Icon
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(16, 45, "Connected to");
         u8g2.setFont(u8g2_font_helvB08_tr);
-        u8g2.drawStr(22, 20, "[CONNECTED]");
-        u8g2.drawStr(5, 35, WIFI_SSID.c_str());
-        u8g2.drawStr(10, 50, IP_Address.c_str());
+        u8g2.drawStr(x, 35, WIFI_SSID.c_str());
+        // u8g2.drawStr(8, 60, "AN5506-04-FA_de9d0"); 
     } while (u8g2.nextPage());
 }
 
 void Display::WiFiNotConnected(){
+    PowerSaveOn(false);
     u8g2.firstPage();
     do {
-        u8g2.setFont(u8g2_font_helvB08_tr);
-        u8g2.drawStr(38, 20, "[FAILED]");
-        u8g2.drawStr(38, 40, "Failed to");
-        u8g2.drawStr(16, 55, "Connect to WiFi.");
+        u8g2.setFont(u8g2_font_streamline_internet_network_t);
+        u8g2.drawGlyph(53, 26, 49); // Disable Internet Icon
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(32, 45, "Failed to");
+        u8g2.drawStr(7, 60, "Connect to WiFi");
     } while (u8g2.nextPage());
 }
 
 void Display::WiFiDisconnected(){
+    PowerSaveOn(false);
     u8g2.firstPage();
     do {
-        u8g2.setFont(u8g2_font_helvB08_tr);
-        u8g2.drawStr(13, 20, "[DISCONNECTED]");
-         u8g2.drawStr(25, 40, "Disconnected");
-        u8g2.drawStr(30, 55, "from WiFi.");
+        u8g2.setFont(u8g2_font_streamline_internet_network_t);
+        u8g2.drawGlyph(53, 26, 50); // No Internet Icon
+        u8g2.setFont(u8g2_font_helvB10_tr);
+         u8g2.drawStr(15, 45, "Disconnected");
+        u8g2.drawStr(30, 60, "from WiFi");
     } while (u8g2.nextPage());
 }
 
 // NTP ----------------------------------------------------------------------
 
 void Display::NTPConnecting(){
-    String NTPserver = "["+ String(NTP_SERVER) +"]"; 
+    PowerSaveOn(false);
     u8g2.firstPage();
     do {
+        u8g2.setFont(u8g2_font_streamline_interface_essential_calendar_t);
+        u8g2.drawGlyph(53, 22, 49); // Calendar
         u8g2.setFont(u8g2_font_helvB10_tr);
-        u8g2.drawStr(28, 15, "Updating");
-        u8g2.drawStr(10, 35, "Date & Time...");
-        u8g2.setFont(u8g2_font_helvB08_tr);
-        u8g2.drawStr(18, 60, NTPserver.c_str());
+        u8g2.drawStr(32, 40, "Updating");
+        u8g2.drawStr(17, 60, "Date & Time...");
+
     } while (u8g2.nextPage());
 }
 
 void Display::NTPConnected(){
+    PowerSaveOn(false);
     u8g2.firstPage();
     do {
-        u8g2.setFont(u8g2_font_helvB08_tr);
-        u8g2.drawStr(30, 25, "[UPDATED]");
-        u8g2.drawStr(5, 43, "Date & Time Updated.");
+        u8g2.setFont(u8g2_font_streamline_interface_essential_calendar_t);
+        u8g2.drawGlyph(54, 22, 49); // Calendar
+        u8g2.setFont(u8g2_font_open_iconic_check_1x_t);
+        u8g2.drawGlyph(70, 26, 64); // Check
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(23, 45, "Date & Time");
+        u8g2.drawStr(33, 60, "Updated");
+        
     } while (u8g2.nextPage());
 }
 
 void Display::NTPNotConnected(){
+    PowerSaveOn(false);
     u8g2.firstPage();
     do {
-        u8g2.setFont(u8g2_font_helvB08_tr);
-        u8g2.drawStr(38, 20, "[FAILED]");
-        u8g2.drawStr(30, 40, "Date & Time");
-        u8g2.drawStr(30, 55, "Not Updated.");
+        u8g2.setFont(u8g2_font_streamline_interface_essential_calendar_t);
+        u8g2.drawGlyph(54, 22, 49); // Calendar
+        u8g2.setFont(u8g2_font_open_iconic_check_1x_t);
+        u8g2.drawGlyph(70, 26, 68); // X
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(23, 45, "Date & Time");
+        u8g2.drawStr(20, 60, "Not Updated");
     } while (u8g2.nextPage());
 }
 
@@ -287,6 +299,7 @@ void Display::NTPNotConnected(){
 // FIREBASE --------------------------------------------------------------
 
 void Display::FirebaseConnecting(){
+    PowerSaveOn(false);
     u8g2.firstPage();
     do {
         u8g2.setFont(u8g2_font_helvB10_tr);
@@ -296,92 +309,204 @@ void Display::FirebaseConnecting(){
 }
 
 void Display::FirebaseConnected(){
+    PowerSaveOn(false);
     u8g2.firstPage();
     do {
-        u8g2.setFont(u8g2_font_helvB08_tr);
-        u8g2.drawStr(23, 25, "[CONNECTED]");
-        u8g2.drawStr(20, 43, "Firebase Ready.");
+        u8g2.setFont(u8g2_font_streamline_coding_apps_websites_t); 
+        u8g2.drawGlyph(53, 26, 54); // Database Icon
+        u8g2.setFont(u8g2_font_open_iconic_check_1x_t);
+        u8g2.drawGlyph(65, 32, 64); // Check Icon
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(10, 50, "Firebase Ready");
     } while (u8g2.nextPage());
 }
 
 void Display::FirebaseNotConnected(){
+    PowerSaveOn(false);
     u8g2.firstPage();
     do {
-        u8g2.setFont(u8g2_font_helvB08_tr);
-        u8g2.drawStr(38, 20, "[FAILED]");
-        u8g2.drawStr(17, 40, "Failed to connect");
-        u8g2.drawStr(33, 55, "to Firebase.");
+        u8g2.setFont(u8g2_font_streamline_coding_apps_websites_t); 
+        u8g2.drawGlyph(53, 24, 54); // Database Icon
+        u8g2.setFont(u8g2_font_open_iconic_check_1x_t);
+        u8g2.drawGlyph(65, 30, 68); // X Icon
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(20, 45, "Firebase Not");
+        u8g2.drawStr(25, 60, "Connected");
     } while (u8g2.nextPage());
 }
 
 // BLUETOOTH
 
 void Display::BluetoothEnabled(){
+    PowerSaveOn(false);
     u8g2.firstPage();
     do {
-        u8g2.setFont(u8g2_font_open_iconic_check_2x_t); 
-        u8g2.drawGlyph(24, 10, 74);
-        u8g2.setFont(u8g2_font_helvB08_tr);
-        u8g2.drawStr(30, 30, "[ENABLED]");
-        u8g2.drawStr(16, 50, "BLUETOOTH ON.");
+        u8g2.setFont(u8g2_font_streamline_interface_essential_circle_triangle_t); 
+        u8g2.drawGlyph(53, 25, 53);
+        u8g2.setFont(u8g2_font_open_iconic_check_1x_t);
+        u8g2.drawGlyph(67, 27, 64); // Check Icon
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(30, 46, "Bluetooth");
+        u8g2.drawStr(50, 62, "ON");
     } while (u8g2.nextPage());  
 }
 
 void Display::BluetoothDisabled(){
+    PowerSaveOn(false);
     u8g2.firstPage();
     do {
-        u8g2.setFont(u8g2_font_open_iconic_check_2x_t); 
-        u8g2.drawGlyph(24, 10, 74);
-        u8g2.setFont(u8g2_font_helvB08_tr);
-        u8g2.drawStr(28, 30, "[DISABLED]");
-        u8g2.drawStr(13, 50, "BLUETOOTH OFF.");
+        u8g2.setFont(u8g2_font_streamline_interface_essential_circle_triangle_t); 
+        u8g2.drawGlyph(53, 25, 53);
+        u8g2.setFont(u8g2_font_open_iconic_check_1x_t);
+        u8g2.drawGlyph(67, 27, 68); // X Icon
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(30, 46, "Bluetooth");
+        u8g2.drawStr(46, 62, "OFF");
     } while (u8g2.nextPage());  
 }
 
-// u8g2.setFont(u8g2_font_streamline_interface_essential_alert_t);
-// u8g2.drawGlyph(95, 52, 50); // Alarm Clock
-// u8g2.drawGlyph(95, 52, 49); // Snooze
-// u8g2.setFont(u8g2_font_streamline_health_beauty_t);
-// u8g2.drawGlyph(95, 52, 70); // Pill
-// u8g2.setFont(u8g2_font_streamline_coding_apps_websites_t); 
-// u8g2.drawGlyph(24, 10, 54); // Datebase
+void Display::BTClientConnect(){
+    PowerSaveOn(false);
+    u8g2.firstPage();
+    do {
+        u8g2.setFont(u8g2_font_streamline_interface_essential_link_t); 
+        u8g2.drawGlyph(53, 28, 48);
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(25, 44, "Connected");
+        u8g2.drawStr(35, 60, "to Client");
+    } while (u8g2.nextPage());  
+}
 
+void Display::BTClientDisconnect(){
+    PowerSaveOn(false);
+    u8g2.firstPage();
+    do {
+        u8g2.setFont(u8g2_font_streamline_interface_essential_link_t); 
+        u8g2.drawGlyph(53, 28, 50);
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(15, 44, "Disconnected");
+        u8g2.drawStr(25, 60, "from Client");
+    } while (u8g2.nextPage());  
+}
 
-// MISC
+void Display::WiFiSettingsUpdate(bool state){
+    PowerSaveOn(false);
+    if (state){
+        u8g2.firstPage();
+        do {
+            u8g2.setFont(u8g2_font_streamline_interface_essential_cog_t); 
+            u8g2.drawGlyph(53, 25, 48);
+            u8g2.setFont(u8g2_font_helvB10_tr);
+            u8g2.drawStr(18, 46, "WiFi Settings");
+            u8g2.drawStr(35, 62, "Updated");
+        } while (u8g2.nextPage());
+    } else{
+        u8g2.firstPage();
+        do {
+            u8g2.setFont(u8g2_font_streamline_interface_essential_cog_t); 
+            u8g2.drawGlyph(53, 25, 48);
+            u8g2.setFont(u8g2_font_helvB10_tr);
+            u8g2.drawStr(18, 46, "WiFi Settings");
+            u8g2.drawStr(25, 62, "NOT Updated");
+        } while (u8g2.nextPage());
+    }
+}
+
+void Display::DeviceSettingsUpdate(bool state){
+    PowerSaveOn(false);
+    if (state){
+        u8g2.firstPage();
+        do {
+            u8g2.setFont(u8g2_font_streamline_interface_essential_cog_t); 
+            u8g2.drawGlyph(53, 25, 48);
+            u8g2.setFont(u8g2_font_helvB10_tr);
+            u8g2.drawStr(10, 46, "Device Settings");
+            u8g2.drawStr(35, 62, "Updated");
+        } while (u8g2.nextPage());
+    } else {
+        u8g2.firstPage();
+        do {
+            u8g2.setFont(u8g2_font_streamline_interface_essential_cog_t); 
+            u8g2.drawGlyph(53, 25, 48);
+            u8g2.setFont(u8g2_font_helvB10_tr);
+            u8g2.drawStr(10, 46, "Device Settings");
+            u8g2.drawStr(25, 62, "NOT Updated");
+        } while (u8g2.nextPage());
+    }
+}
+
+void Display::BTAuthorized(){
+    PowerSaveOn(false);
+    u8g2.firstPage();
+    do {
+        u8g2.setFont(u8g2_font_streamline_interface_essential_id_t); 
+        u8g2.drawGlyph(53, 28, 53);
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(23, 46, "Connection");
+        u8g2.drawStr(26, 62, "Authorized");
+    } while (u8g2.nextPage());  
+}
+
+void Display::BTDenied(){
+    PowerSaveOn(false);
+    u8g2.firstPage();
+    do {
+        u8g2.setFont(u8g2_font_streamline_interface_essential_id_t); 
+        u8g2.drawGlyph(53, 28, 56);
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(24, 46, "Connection");
+        u8g2.drawStr(38, 62, "Denied");
+    } while (u8g2.nextPage());  
+}
+
+// TEMPERATURE & HUMIDITY
 
 void Display::HumTemp(float humidity, float temperature){
+    PowerSaveOn(false);
     String temp = String(temperature)+" \xb0"+"C";
     String hum = String(humidity)+" %";
 
     u8g2.firstPage();
     do {
         u8g2.setFont(u8g2_font_streamline_weather_t); 
-        u8g2.drawGlyph(10, 30, 54); // TEMP
+        u8g2.drawGlyph(10, 30, 54); // Thermometer Icon
         u8g2.setFont(u8g2_font_open_iconic_thing_2x_t); 
-        u8g2.drawGlyph(10, 60, 72); // HUMI
+        u8g2.drawGlyph(10, 60, 72); // Humidity Icon
 
         u8g2.setFont(u8g2_font_helvB12_tf);
         u8g2.drawStr(40, 25, temp.c_str());
         u8g2.drawStr(40, 58, hum.c_str());
 
-        // u8g2.setFont(u8g2_font_streamline_weather_t); 
-        // u8g2.drawGlyph(25, 40, 54); // TEMP
-        // u8g2.setFont(u8g2_font_open_iconic_thing_2x_t); 
-        // u8g2.drawGlyph(90, 35, 72); // HUMI
-
-        // u8g2.setFont(u8g2_font_ncenB10_tf);
-        // u8g2.drawStr(7, 55, temp.c_str());
-        // u8g2.drawStr(75, 55, hum.c_str());
-
     } while (u8g2.nextPage());
 }
+
+void Display::HumTempWarning(float humidity, float temperature, int mode){
+    String temp = String(temperature)+" \xb0"+"C";
+    String hum = String(humidity)+" %";
+    u8g2.firstPage();
+    do {
+        u8g2.setFont(u8g2_font_streamline_interface_essential_circle_triangle_t); 
+        u8g2.drawGlyph(53, 25, 52);
+        u8g2.setFont(u8g2_font_helvB10_tf);
+
+        if (mode == 1){
+        u8g2.drawStr(5, 46, "HIGH HUMIDITY!!");
+        u8g2.drawStr(38, 62, hum.c_str());
+        }else if(mode == 2){
+        u8g2.drawStr(20, 46, "HIGH TEMP!!!");
+        u8g2.drawStr(38, 62, temp.c_str());
+        };    
+    } while (u8g2.nextPage());    
+}
+
+// 
 
 void Display::FromPowerOn(){
     u8g2.firstPage();
     do {
         u8g2.setFont(u8g2_font_helvB10_tr);
-        u8g2.drawStr(30, 30, "Starting");
-        u8g2.drawStr(15, 50, "MediTECH...");
+        u8g2.drawStr(35, 30, "Starting");
+        u8g2.drawStr(22, 50, "MediTECH...");
     } while (u8g2.nextPage());
 }
 
@@ -389,35 +514,121 @@ void Display::FromReset(){
     u8g2.firstPage();
     do {
         u8g2.setFont(u8g2_font_helvB10_tr);
-        u8g2.drawStr(20, 30, "Restarting");
-        u8g2.drawStr(15, 50, "MediTECH...");
+        u8g2.drawStr(28, 30, "Restarting");
+        u8g2.drawStr(22, 50, "MediTECH...");
     } while (u8g2.nextPage());
+}
+
+void Display::PowerOFF(){
+    u8g2.firstPage();
+    do {
+        u8g2.setFont(u8g2_font_open_iconic_embedded_2x_t); 
+        u8g2.drawGlyph(55, 25, 78);
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(30, 46, "Powering ");
+        u8g2.drawStr(42, 62, "OFF...");
+    } while (u8g2.nextPage()); 
+}
+
+void Display::LowBattery(){
+    u8g2.firstPage();
+    do {
+        u8g2.setFont(u8g2_font_streamline_interface_essential_other_t); 
+        u8g2.drawGlyph(53, 28, 48);
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(12, 52, "LOW BATTERY");
+    } while (u8g2.nextPage());  
 }
 
 void Display::ComponentStatus(){
     u8g2.firstPage();
         do {
-            u8g2.setFont(u8g2_font_helvB08_tr);
-            u8g2.drawStr(15, 25, "RTC Module");
+            u8g2.setFont(u8g2_font_helvB10_tr);
+            u8g2.drawStr(10, 28, "RTC Module");
             if (RTCFound){
                u8g2.setFont(u8g2_font_open_iconic_check_2x_t); 
-               u8g2.drawGlyph(95, 27, 65);
+               u8g2.drawGlyph(105, 30, 65); // Check in Circle Icon
             }else{
                 u8g2.setFont(u8g2_font_open_iconic_check_2x_t); 
-                u8g2.drawGlyph(95, 27, 66);
+                u8g2.drawGlyph(105, 30, 66); // X in Circle Icon
             }
 
-            u8g2.setFont(u8g2_font_helvB08_tr);
-            u8g2.drawStr(15, 55, "AHT Module");
+            u8g2.setFont(u8g2_font_helvB10_tr);
+            u8g2.drawStr(10, 52, "AHT Module");
             if (AHTFound){
                u8g2.setFont(u8g2_font_open_iconic_check_2x_t); 
-               u8g2.drawGlyph(95, 57, 65);
+               u8g2.drawGlyph(105, 56, 65);
             }else{
                 u8g2.setFont(u8g2_font_open_iconic_check_2x_t); 
-                u8g2.drawGlyph(95, 57, 66);
+                u8g2.drawGlyph(105, 56, 66);
             }
 
         } while (u8g2.nextPage());
-}  
+}
+
+void Display::AlarmStopped(){
+    u8g2.firstPage();
+    do {
+        u8g2.setFont(u8g2_font_streamline_interface_essential_alert_t); 
+        u8g2.drawGlyph(53, 28, 48);
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(13, 50, "Alarm Stopped");
+    } while (u8g2.nextPage());  
+}
+
+void Display::AlarmSnooze(){
+    u8g2.firstPage();
+    do {
+        u8g2.setFont(u8g2_font_streamline_interface_essential_alert_t); 
+        u8g2.drawGlyph(53, 28, 49);
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(12, 50, "Alarm Snoozed");
+    } while (u8g2.nextPage()); 
+}
+
+void Display::AlarmTakePills(){
+    u8g2.firstPage();
+    do {
+        u8g2.setFont(u8g2_font_streamline_health_beauty_t); 
+        u8g2.drawGlyph(53, 28, 70);
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(40, 46, "Please");
+        u8g2.drawStr(30, 62, "Take Pills");
+    } while (u8g2.nextPage());
+}
+
+void Display::AlarmStatus(int status){
+    switch (status)
+    {
+    case 1:
+        u8g2.firstPage();
+        do {
+            u8g2.setFont(u8g2_font_open_iconic_check_2x_t); 
+            u8g2.drawGlyph(56, 27, 65);
+            u8g2.setFont(u8g2_font_helvB10_tr);
+            u8g2.drawStr(25, 50, "Pills Taken");
+        } while (u8g2.nextPage());
+        break;
+    
+    case 2:
+        u8g2.firstPage();
+        do {
+            u8g2.setFont(u8g2_font_open_iconic_check_2x_t); 
+            u8g2.drawGlyph(56, 27, 65);
+            u8g2.setFont(u8g2_font_helvB10_tr);
+            u8g2.drawStr(18, 50, "Pills Skipped");
+        } while (u8g2.nextPage()); 
+        break;
+    case 3:
+        u8g2.firstPage();
+        do {
+            u8g2.setFont(u8g2_font_open_iconic_check_2x_t); 
+            u8g2.drawGlyph(56, 27, 66);
+            u8g2.setFont(u8g2_font_helvB10_tr);
+            u8g2.drawStr(22, 50, "Pills Missed");
+        } while (u8g2.nextPage()); 
+        break;
+    }
+}
 
 

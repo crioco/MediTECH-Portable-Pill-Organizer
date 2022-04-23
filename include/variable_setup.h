@@ -41,7 +41,7 @@ std::vector<Pill> PillList;
 
 // TEMP & HUMIDITY -----------------------------------------------------------------------------------------------------------
 
-#define tempTH 33 // Temoerature Threshold in Celcius
+#define tempTH 35 // Temoerature Threshold in Celcius
 #define humdTH 75 // Humidity Threshold in Percent
 
 // {{Position Slot 1, Dosage}, {Position Slot 2, Dosage}}}

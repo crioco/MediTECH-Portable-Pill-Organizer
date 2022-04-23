@@ -59,6 +59,8 @@ extern bool isWiFiEnabled;
 extern bool isWiFiConnected;
 extern bool isBluetoothEnabled;
 extern bool bluetoothAuth;
+extern bool isBTClientConnected;
+extern bool isBTClientDisconnected;
 
 int displayCountStart = 0;
 
@@ -67,6 +69,8 @@ extern int alarmSoundCounter;
 extern bool alarmSoundOn;
 extern bool alarmOn;
 
+extern int checkBatteryStart;
+// extern U8G2_SH1106_128X64_NONAME_1_HW_I2C u8g2;
 
 bool isDeviceOpen = false;
 bool LedMatrixOn = false;
@@ -78,7 +82,7 @@ extern float humidity;
 RTC_DATA_ATTR int bootCount = 0;
 
 // -----------------------------------------------------------------------------------------------------------------------------
-std::vector<std::vector<int>> VEC = {{1, 3}, {2, 0}, {3, 1}, {4, 2}, {5, 4}}; // FOR TESTING
+// std::vector<std::vector<int>> VEC = {{1, 3}, {2, 0}, {3, 1}, {4, 2}, {5, 4}}; // FOR TESTING
 
 void print_wakeup_reason(){
   esp_sleep_wakeup_cause_t wakeup_reason;
@@ -94,13 +98,7 @@ void print_wakeup_reason(){
   }
 }
 
-void DisplayOn(){
-  display->PowerSaveOn(false);
-  displayCountStart = millis();
-}
-
 void loop_2(void * pvParameters){
-
   //Loop
   for(;;){
     // Checks button 1, 2, & 3 Status
@@ -159,10 +157,7 @@ void setup() {
   print_wakeup_reason();
 
   pinMode(buzzerPin, OUTPUT);
-  // pinMode(vib_pin, OUTPUT);
-
-  // ledcSetup(1, 2000, 8);
-  // ledcAttachPin(buzzerPin, 1);
+  pinMode(vib_pin, OUTPUT);
 
   // LiPo Battery Level
   analogReadResolution(11);
@@ -221,9 +216,9 @@ void setup() {
   initSPIFFS();
   display->initDisplay();
   getPillListfromJSON();
-  loadConfigJSON();
+  // loadConfigJSON();
 
-  // ---------------------------------------------------
+  // // ---------------------------------------------------
 
   // If restarted after WiFi on while BLE on
   EEPROM.begin(1);
@@ -234,14 +229,13 @@ void setup() {
   }
 
   // Turn on Display
-  displayCountStart = millis();
+  display->PowerSaveOn(false);
 }
 
 int x = 1;
-extern int checkBatteryStart;
+
 void loop() {
   // Checks Battery Level in Percentage (3.3 V - 4.11 V)
-  
   checkBattery();
 
   // alarmSoundOn = true;
@@ -258,9 +252,19 @@ void loop() {
     } 
   }
 
+  if (isBTClientConnected){
+    isBTClientConnected = false;
+    display->BTClientConnect();
+    delay(2000);
+  } else if(isBTClientDisconnected){
+    isBTClientDisconnected = false;
+    display->BTClientDisconnect();
+    delay(2000);
+  }
+
   // TURN DISPLAY ON FROM POWER SAVE
   if (btnClick1 == true || btnClick2 == true){
-    DisplayOn();
+    display->PowerSaveOn(false);
     btnClick1 = btnClick2 = false;
   }
 
@@ -271,7 +275,7 @@ void loop() {
 
   // WiFi ON/OFF
   if (btnMulti1){
-    DisplayOn();
+    // display->PowerSaveOn(false);
     btnMulti1 = false;
     switch (nClicks1)
     {
@@ -286,6 +290,7 @@ void loop() {
           Serial.println("BLUETOOTH OFF");
           bluetooth->BTDisconnect();
           Serial.println("RESETING DEVICE");
+          delay(2000);
           ESP.restart();
         } else initNetwork();    
       }
@@ -306,18 +311,22 @@ void loop() {
 
   // BLUETOOTH ON/OFF
   if (btnMulti2){
-    DisplayOn();
+    // display->PowerSaveOn(false);
     btnMulti2 = false;
     switch (nClicks2)
     {
     case 3:
       if (!isBluetoothEnabled){
-        Serial.println("BLUETOOTH ON");
-        bluetooth->initBluetooth();
-      } else {
-        Serial.println("BLUETOOTH OFF");
-        bluetooth->BTDisconnect();
-        Serial.println("RESETING DEIVCE");
+        if(isWiFiConnected){
+          network->WiFiDisconnect();
+          Serial.println("BLUETOOTH ON");
+          bluetooth->initBluetooth();
+        } else{
+           bluetooth->initBluetooth();
+        }
+      } 
+      else {
+        bluetooth->BTDisconnect();     
         ESP.restart();
       }
       break;
@@ -343,14 +352,12 @@ void loop() {
 
   // TURN DEEP SLEEP ON
   if(btnLongPress3){
-    DisplayOn();
+    // display->PowerSaveOn(false);
     btnLongPress3 = false;
     if (pressDuration3 == 5){
       pressDuration3 = 0;
-      Serial.println("Going to Sleep...");
+      display->PowerOFF();
       delay(2000);
-      Serial.println("[Sleep]");
-      delay(500);
       display->PowerSaveOn(true);
       esp_sleep_enable_timer_wakeup(30 * 1000000);
       esp_deep_sleep_start();
@@ -360,33 +367,44 @@ void loop() {
   // SHOW DEVICE HUMIDITY AND TEMPERATURE
   if (btnDouble1){
     btnDouble1 = false;
-    DisplayOn();
+    // display->PowerSaveOn(false);
     display->HumTemp(humidity, temperature);
     delay(3000);
-    DisplayOn();
+    display->PowerSaveOn(false);
   }
 
   // if (btnClick1 == true){
   //   x++;
-  //   if (x > 5) x=1;
+  //   if (x > 9) x=1;
   // } btnClick1 = false;
-
   // switch (x)
   // {
   // case 1:
-  //   display->WiFiEnabled();
+ 
   //   break;
   // case 2:
-  //   display->WiFiDisabled();
+
   //   break;
   // case 3:
-  //   display->WiFiReconnecting();
+
   //   break;
   // case 4:
-  //   display->WiFiDisconnected();
+  
   //   break;
   // case 5:
-  //   display->ComponentStatus();
+ 
+  //   break;
+  // case 6:
+
+  //   break;
+  // case 7:
+
+  //   break;
+  // case 8:
+
+  //   break;
+  // case 9:
+
   //   break;
   // }
 }

@@ -38,7 +38,7 @@ extern int displayCountStart;
 int buzzStartMillis = 0;
 int HumTempStartMillis = 0;
 
-// int buzzCurrentMillis = 0;
+int buzzCurrentMillis = 0;
 
 float temperature;
 float humidity;
@@ -198,7 +198,7 @@ void checkAlarm(){
     while (millis() - previousMillis < ringDuration){
 
       display->displayAlarm(now);
-
+      alarmSoundOn = true;
       // Stop Alarm. BTN 1&2 3 Clicks
       if (btnMulti1 || btnMulti2){
         btnMulti1 = btnMulti2 = false;
@@ -206,6 +206,7 @@ void checkAlarm(){
           nClicks1 = nClicks2 = 0;
           Serial.println("[Alarm Stopped]");
           alarmOn = false;
+          display->AlarmStopped();
           break;
         }
       }
@@ -214,23 +215,23 @@ void checkAlarm(){
       if (btnDouble1 || btnDouble2){
         btnDouble1 = btnDouble2 = false;
         Serial.println("[Alarm Snoozed]");
+        display->AlarmSnooze();
         break;
-      }
-
-      // currentMillis = millis();
-      alarmSoundOn = true;
-      // alarmSound();
-      // Vibrate
-      // Display Alarm (AlarmList or Time)
+      }  
     }
 
     alarmSoundOn = false;
+    digitalWrite(vib_pin, LOW);
+    delay(2000);
 
     // Snoozed
     if (alarmOn){
       now = rtc.now() + TimeSpan(0, 0, snoozeDuration/60000, 0);
       alarmTime = (now.hour() * 100) + now.minute();
       previousAlarmTime = now;
+      display->AlarmSnooze();
+      delay(2000);
+      // Display Next Alarm
       Serial.print("Next Alarm: "); Serial.println(previousAlarmTime.timestamp());
       snoozed++;
     }
@@ -240,9 +241,10 @@ void checkAlarm(){
       // Firebase (Missed)
       Serial.println("[Missed]");
       alarmState = 3; // "Missed"
+      display->AlarmStatus(alarmState);
+      delay(2000);
       if(!network->firestoreDataUpdate(listedAlarmTime.unixtime(), previousAlarmTime.unixtime(), currentAlarms.second, alarmState))
         addFirestoreQueue(listedAlarmTime.unixtime(), previousAlarmTime.unixtime(),currentAlarms.second, alarmState);
-      // Display Missed
       alarmTime = alarmState = snoozed = 0;
       LEDVec.clear();
       storePrevAlarm(previousAlarmTime.unixtime());
@@ -258,6 +260,8 @@ void checkAlarm(){
         }else{
           LedMatrixOn = false;
         };
+        
+        display->AlarmTakePills();
 
         // Take Pills
         if (btnMulti1 || btnMulti2){
@@ -266,9 +270,10 @@ void checkAlarm(){
             nClicks1 = nClicks2 = 0;
             Serial.println("[Taken]");
             alarmState = 1; // "Taken"
+            display->AlarmStatus(alarmState);
+            delay(2000);
             if(!network->firestoreDataUpdate(listedAlarmTime.unixtime(), previousAlarmTime.unixtime(), currentAlarms.second, alarmState))
               addFirestoreQueue(listedAlarmTime.unixtime(), previousAlarmTime.unixtime(),currentAlarms.second, alarmState);
-            // Display Taken !!
             alarmTime = alarmState = snoozed = 0;
             LEDVec.clear();
             break;
@@ -282,17 +287,18 @@ void checkAlarm(){
             pressDuration1 = pressDuration2 = 0;
             Serial.println("[Skipped]");
             alarmState = 2; // "Skipped"
+            display->AlarmStatus(alarmState);
+            delay(2000);
             if(!network->firestoreDataUpdate(listedAlarmTime.unixtime(), previousAlarmTime.unixtime(), currentAlarms.second, alarmState))
               addFirestoreQueue(listedAlarmTime.unixtime(), previousAlarmTime.unixtime(),currentAlarms.second, alarmState);
-            // Display Skipped !!
             alarmTime = alarmState = snoozed = 0;
             LEDVec.clear();
             break;
           }
         }
-        display->displayAlarm(previousAlarmTime);
       }
       LedMatrixOn = false;
+      display->PowerSaveOn(false);
       displayCountStart = millis(); // Turn on Display
       storePrevAlarm(previousAlarmTime.unixtime());
     }
@@ -323,14 +329,13 @@ void checkHumTemp(){
       temperature = temp.temperature;
       humidity = humid.relative_humidity;
 
-      // Serial.print("Temp: "); Serial.print(temperature); Serial.println(" C");
-      // Serial.print("Humidity: "); Serial.print(humidity); Serial.println(" %");
-
-      if (temperature >= tempTH || humidity >= humdTH){
-        // Display Warning of Temp / Humidity
-        Serial.println("WARNING! TEMP/HUMIDITY");
+      while (humidity >= humdTH){
+        display->HumTempWarning(humidity, temperature, 1);
       }
 
+      while (temperature >= tempTH){
+        display->HumTempWarning(humidity, temperature, 2);
+      }
       HumTempStartMillis = millis();
     } 
   }
@@ -343,8 +348,6 @@ int LEDrow[] = {LEDa, LEDb, LEDc, LEDd, LEDe}; // Array of LED pins indicating t
 
 // Map the container number to the corresponding pin number for the LED multiplex.
 std::map<int, int> LEDmap = {{1, LEDa}, {2, LEDb}, {3, LEDc}, {4, LEDd}, {5, LEDe}};
-
-//  {{1, 4}, {2, 4}, {3, 4}, {4, 4}, {5, 4}};
 
 // Displays the pills and dosage using LED matrix, argument of 2D vector with the pill position and dosage. LEDVec = {{Position Slot, Dosage}}
 void displayLED (vector<vector<int>>LEDVec){
@@ -359,69 +362,38 @@ void displayLED (vector<vector<int>>LEDVec){
 
 int alarmSoundCounter = 0;
 void alarmSound(){
-  // buzzCurrentMillis = millis();
-  if (millis() - buzzStartMillis >= 50 && alarmSoundCounter == 0){
+  buzzCurrentMillis = millis();
+  digitalWrite(vib_pin, HIGH);
+  if (buzzCurrentMillis - buzzStartMillis >= 50 && alarmSoundCounter == 0){
     digitalWrite(buzzerPin, HIGH);
     alarmSoundCounter += 1;
   }
-  if (millis() - buzzStartMillis >= 100 && alarmSoundCounter == 1){
+  if (buzzCurrentMillis - buzzStartMillis >= 100 && alarmSoundCounter == 1){
     digitalWrite(buzzerPin, LOW);
     alarmSoundCounter += 1;
   }
-  if (millis() - buzzStartMillis >= 200 && alarmSoundCounter == 2){
+  if (buzzCurrentMillis - buzzStartMillis >= 200 && alarmSoundCounter == 2){
     digitalWrite(buzzerPin, HIGH);
     alarmSoundCounter += 1;
   }
-  if (millis() - buzzStartMillis >= 250 && alarmSoundCounter == 3){
+  if (buzzCurrentMillis - buzzStartMillis >= 250 && alarmSoundCounter == 3){
     digitalWrite(buzzerPin, LOW);
     alarmSoundCounter += 1;
   }
-  if (millis() - buzzStartMillis >= 350 && alarmSoundCounter == 4){
+  if (buzzCurrentMillis - buzzStartMillis >= 350 && alarmSoundCounter == 4){
     digitalWrite(buzzerPin, HIGH);
     alarmSoundCounter += 1;
   }
-  if (millis() - buzzStartMillis >= 400 && alarmSoundCounter == 5){
+  if (buzzCurrentMillis - buzzStartMillis >= 400 && alarmSoundCounter == 5){
     digitalWrite(buzzerPin, LOW);
     alarmSoundCounter += 1;
   }
-  if (millis() - buzzStartMillis >= 900 && alarmSoundCounter == 6){
-    // buzzStartMillis = millis();
+  if (buzzCurrentMillis - buzzStartMillis >= 900 && alarmSoundCounter == 6){
+    digitalWrite(vib_pin, LOW);
+    buzzStartMillis = millis();
     alarmSoundCounter = 0;
   }
 }
-
-// void alarmSound(){
-//   buzzCurrentMillis = millis();
-//   ledcWriteNote(1, 2000);
-//   if (buzzCurrentMillis - buzzStartMillis >= 50 && alarmSoundCounter == 0){
-//     ledcWrite(1, 255);
-//     alarmSoundCounter += 1;
-//   }
-//   if (buzzCurrentMillis - buzzStartMillis >= 100 && alarmSoundCounter == 1){
-//     ledcWrite(1, 0);
-//     alarmSoundCounter += 1;
-//   }
-//   if (buzzCurrentMillis - buzzStartMillis >= 200 && alarmSoundCounter == 2){
-//     ledcWrite(1, 255);
-//     alarmSoundCounter += 1;
-//   }
-//   if (buzzCurrentMillis - buzzStartMillis >= 250 && alarmSoundCounter == 3){
-//     ledcWrite(1, 0);
-//     alarmSoundCounter += 1;
-//   }
-//   if (buzzCurrentMillis - buzzStartMillis >= 350 && alarmSoundCounter == 4){
-//     ledcWrite(1, 255);
-//     alarmSoundCounter += 1;
-//   }
-//   if (buzzCurrentMillis - buzzStartMillis >= 400 && alarmSoundCounter == 5){
-//     ledcWrite(1, 0);
-//     alarmSoundCounter += 1;
-//   }
-//   if (buzzCurrentMillis - buzzStartMillis >= 900 && alarmSoundCounter == 6){
-//     buzzStartMillis = millis();
-//     alarmSoundCounter = 0;
-//   }
-// }
 
 // void alarmSound(){
 //   digitalWrite(buzzerPin, HIGH);
@@ -438,7 +410,6 @@ void alarmSound(){
 //   delay(500);
 // }
 
-
 #define SampleSize 64
 int batteryPercent = 0;
 int checkBatteryStart = 0;
@@ -454,26 +425,21 @@ void checkBattery(){
 
   // Change Mapping ADCValue 1650 (3.4V / 1.53V) & 2023 (4.12V / 1.85V) to 0%-100%
   batteryPercent = map(ADCvalue, 1650, 2025, 0, 100);
-  
-  // Serial.print("ADC: "); Serial.println(ADCvalue); 
-  // Serial.print("Voltage: "); Serial.println(voltage);
-  // Serial.printf("Battery: %d %% \n", batteryPercent);
 
   batteryLevel = batteryPercent;
   if (batteryLevel > 100) batteryLevel = 100;
   else if (batteryLevel < 0) batteryLevel = 0;
 
   // if (batteryLevel < 5){
-  //   // Display Low Battery
+  //   display->LowBattery();
   //   Serial.println("LOW BATTERY.");
   //   delay(2000);
+  //   display->PowerOFF();
   //   Serial.println("POWERING OFF...");
   //   delay(3000);
   //   display->PowerSaveOn(true);
-  //   esp_sleep_enable_timer_wakeup(30 * 1000000);
   //   esp_deep_sleep_start();
   // }
-
   checkBatteryStart = millis();
   }
 }

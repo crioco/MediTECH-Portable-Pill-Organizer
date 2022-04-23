@@ -35,7 +35,7 @@ void WiFiEventConnected(WiFiEvent_t event, WiFiEventInfo_t info){
 
 void WiFiEventGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
     Serial.print("LOCAL IP ADDRESS: "); Serial.println(WiFi.localIP());
-    display->WiFiConnected(WiFi.localIP());
+    display->WiFiConnected();
     isWiFiConnected = true;
     delay(2000);
 }
