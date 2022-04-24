@@ -478,12 +478,12 @@ void loadConfigJSON(){
     snoozeAmount = sAmount;
     previousAlarmTime = DateTime(prevAlarmUnix);
 
-    Serial.println(WIFI_SSID);
-    Serial.println(WIFI_PASSWORD);
-    Serial.println(ringDuration);
-    Serial.println(snoozeDuration);
-    Serial.println(snoozeAmount);
-    Serial.println(previousAlarmTime.timestamp());
+    // Serial.println(WIFI_SSID);
+    // Serial.println(WIFI_PASSWORD);
+    // Serial.println(ringDuration);
+    // Serial.println(snoozeDuration);
+    // Serial.println(snoozeAmount);
+    // Serial.println(previousAlarmTime.timestamp());
 
 
     Serial.println("Data loaded from config.json");

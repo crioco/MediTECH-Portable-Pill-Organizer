@@ -138,21 +138,21 @@ boolean Network::firestoreDataUpdate(int alarmTimeUnix, int takenTimeUnix, std::
 
         FirebaseJson content;
 
-        bool isSkipped, isTaken;
+        bool isMissed, isTaken;
 
         switch (alarmState)
         {
         case 1: // Taken
             isTaken = true;
-            isSkipped = false;
+            isMissed = false;
             break;
         case 2: // Skipped
             isTaken = false;
-            isSkipped = true;
+            isMissed = false;
             break;
         case 3: // Missed
             isTaken = false;
-            isSkipped = false;
+            isMissed = true;
             break;
         }
 
@@ -163,7 +163,7 @@ boolean Network::firestoreDataUpdate(int alarmTimeUnix, int takenTimeUnix, std::
             content.set("fields/pills/mapValue/fields/"+pill_name+"/mapValue/fields/isTaken/booleanValue", isTaken);
         }
         
-        content.set("fields/isSkipped/booleanValue", isSkipped);
+        content.set("fields/isMissed/booleanValue", isMissed);
 
         DateTime tempTime = alarmTime + TimeSpan(0,-8,0,0);
         String alarmTimestamp = tempTime.timestamp()+"Z";
@@ -178,7 +178,7 @@ boolean Network::firestoreDataUpdate(int alarmTimeUnix, int takenTimeUnix, std::
         // if(Firebase.Firestore.patchDocument(&fbdo, FIREBASE_PROJECT_ID,"", documentPath.c_str(), content.raw(), 
         //     "pills.pill_name1.dosage,
         //      pills.pill_name1.isTaken,
-        //      isSkipped"))
+        //      isMissed"))
         //     {
         //     Serial.printf("ok\ndocument updated\n%s\n\n", fbdo.payload().c_str());
         //     return;

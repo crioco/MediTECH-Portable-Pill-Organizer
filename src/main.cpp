@@ -216,7 +216,7 @@ void setup() {
   initSPIFFS();
   display->initDisplay();
   getPillListfromJSON();
-  // loadConfigJSON();
+  loadConfigJSON();
 
   // // ---------------------------------------------------
 

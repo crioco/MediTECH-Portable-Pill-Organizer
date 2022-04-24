@@ -386,10 +386,10 @@ void alarmSound(){
   }
   if (buzzCurrentMillis - buzzStartMillis >= 400 && alarmSoundCounter == 5){
     digitalWrite(buzzerPin, LOW);
+    digitalWrite(vib_pin, LOW);
     alarmSoundCounter += 1;
   }
   if (buzzCurrentMillis - buzzStartMillis >= 900 && alarmSoundCounter == 6){
-    digitalWrite(vib_pin, LOW);
     buzzStartMillis = millis();
     alarmSoundCounter = 0;
   }
