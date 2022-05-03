@@ -24,6 +24,7 @@ class Network{
         void WiFiDisconnect();
         void WiFiConnect();
         boolean firestoreDataUpdate(int alarmTimeUnix, int takenTimeUnix, std::vector<std::pair<String, int>> alarmPills, int alarmState);
+        boolean UpdateSettings();
 };
 
 #endif

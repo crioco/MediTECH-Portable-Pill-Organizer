@@ -12,29 +12,35 @@ extern char months[12][4];
 extern int batteryLevel;
 extern bool RTCFound;
 extern bool AHTFound;
+extern bool OLEDFound;
 
 extern int displayCountStart;
 extern RTC_DS3231 rtc;
 
 void Display::initDisplay(){
     if (u8g2.begin()){
+        OLEDFound = true;
         u8g2.enableUTF8Print();
         Serial.println("[Success] OLED Display On");
     } else {
+        OLEDFound = false;
         Serial.println("[Failed] OLED Display Not Found");
         return;
     }
-     
-    esp_reset_reason_t reason = esp_reset_reason();
-    if (reason == ESP_RST_SW){
-        FromReset();
-    } else{
-        FromPowerOn();
-    }
+    
+    if (OLEDFound){
+        esp_reset_reason_t reason = esp_reset_reason();
+        if (reason == ESP_RST_SW){
+            FromReset();
+        } else{
+            FromPowerOn();
+        }
 
-    delay(4000);
-    ComponentStatus();
-    delay(4000);
+        delay(3000);
+        ComponentStatus();
+        delay(3000);
+    }
+    
 }
 void Display::PowerSaveOn(bool enabled){
     if (enabled){
@@ -83,7 +89,7 @@ void Display::displayTime(){
         if (now.twelveHour() < 10){
             u8g2.drawStr(8, 40, time.c_str());
             u8g2.setFont(u8g2_font_helvB10_tr);
-            u8g2.drawStr(96, 40, meridiem.c_str());
+            u8g2.drawStr(94, 40, meridiem.c_str());
         } else {
             u8g2.drawStr(1, 40, time.c_str());
             u8g2.setFont(u8g2_font_helvB10_tr);
@@ -92,12 +98,12 @@ void Display::displayTime(){
 
         // DATE
         u8g2.setFont(u8g2_font_helvB10_tr);
-        u8g2.drawStr(50, 60, date.c_str());
+        u8g2.drawStr(52, 63, date.c_str());
 
         // DAY OF WEEK
         // u8g2.setFont(u8g2_font_ncenB18_tr);
         u8g2.setFont(u8g2_font_helvB14_tr);
-        u8g2.drawStr(2, 60, dayOfWeek[now.dayOfTheWeek()]);
+        u8g2.drawStr(2, 63, dayOfWeek[now.dayOfTheWeek()]);
         
         // BATTERY LEVEL
         u8g2.setFont(u8g2_font_helvB08_tr);
@@ -145,6 +151,7 @@ void Display::displayTime(){
 }
 
 void Display::displayAlarm(DateTime time){
+    PowerSaveOn(false);
     int x = 0;
     String hour, minute, ftime;
     hour = String(time.twelveHour());
@@ -216,14 +223,10 @@ void Display::WiFiConnected(){
     PowerSaveOn(false);
     u8g2.firstPage();
     do {
-        int x = (128 - WIFI_SSID.length()*6) / 2;
         u8g2.setFont(u8g2_font_streamline_interface_essential_wifi_t);
         u8g2.drawGlyph(53, 25, 48); // WiFi Icon
         u8g2.setFont(u8g2_font_helvB10_tr);
-        u8g2.drawStr(16, 45, "Connected to");
-        u8g2.setFont(u8g2_font_helvB08_tr);
-        u8g2.drawStr(x, 35, WIFI_SSID.c_str());
-        // u8g2.drawStr(8, 60, "AN5506-04-FA_de9d0"); 
+        u8g2.drawStr(20, 45, "Connected");
     } while (u8g2.nextPage());
 }
 
@@ -335,6 +338,40 @@ void Display::FirebaseNotConnected(){
     } while (u8g2.nextPage());
 }
 
+void Display::FirebaseUploading(){
+    PowerSaveOn(false);
+    u8g2.firstPage();
+    do {
+        u8g2.setFont(u8g2_font_streamline_internet_network_t); 
+        u8g2.drawGlyph(53, 24, 52); // Upload Icon
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(30, 45, "Uploading");
+        u8g2.drawStr(30, 60, "Pill Intake");
+        }
+    while (u8g2.nextPage());
+}
+
+void Display::FirebaseUpdated(bool state){
+    PowerSaveOn(false);
+    u8g2.firstPage();
+    do {
+        u8g2.setFont(u8g2_font_streamline_internet_network_t); 
+        u8g2.drawGlyph(53, 24, 52); // Upload Icon
+        u8g2.setFont(u8g2_font_open_iconic_check_1x_t);
+        if (state){
+            u8g2.drawGlyph(65, 30, 64); // Check Icon
+            u8g2.setFont(u8g2_font_helvB10_tr);
+            u8g2.drawStr(30, 45, "Pill Intake");
+            u8g2.drawStr(30, 60, "Uploaded");    
+        }else{
+            u8g2.drawGlyph(65, 30, 68); // X Icon
+            u8g2.setFont(u8g2_font_helvB10_tr);
+            u8g2.drawStr(30, 45, "Pill Intake");
+            u8g2.drawStr(16, 60, "Upload Failed");      
+        }
+    } while (u8g2.nextPage());
+}
+
 // BLUETOOTH
 
 void Display::BluetoothEnabled(){
@@ -435,6 +472,29 @@ void Display::DeviceSettingsUpdate(bool state){
     }
 }
 
+void Display::PillSettingsUpdate(bool state){
+    PowerSaveOn(false);
+    if (state){
+        u8g2.firstPage();
+        do {
+            u8g2.setFont(u8g2_font_streamline_interface_essential_cog_t); 
+            u8g2.drawGlyph(53, 25, 48);
+            u8g2.setFont(u8g2_font_helvB10_tr);
+            u8g2.drawStr(24, 46, "Pill Settings");
+            u8g2.drawStr(35, 62, "Updated");
+        } while (u8g2.nextPage());
+    } else {
+        u8g2.firstPage();
+        do {
+            u8g2.setFont(u8g2_font_streamline_interface_essential_cog_t); 
+            u8g2.drawGlyph(53, 25, 48);
+            u8g2.setFont(u8g2_font_helvB10_tr);
+            u8g2.drawStr(24, 46, "Pill Settings");
+            u8g2.drawStr(25, 62, "NOT Updated");
+        } while (u8g2.nextPage());
+    }
+}
+
 void Display::BTAuthorized(){
     PowerSaveOn(false);
     u8g2.firstPage();
@@ -499,7 +559,7 @@ void Display::HumTempWarning(float humidity, float temperature, int mode){
     } while (u8g2.nextPage());    
 }
 
-// 
+// DEVICE
 
 void Display::FromPowerOn(){
     u8g2.firstPage();
@@ -531,6 +591,7 @@ void Display::PowerOFF(){
 }
 
 void Display::LowBattery(){
+    PowerSaveOn(false);
     u8g2.firstPage();
     do {
         u8g2.setFont(u8g2_font_streamline_interface_essential_other_t); 
@@ -566,7 +627,11 @@ void Display::ComponentStatus(){
         } while (u8g2.nextPage());
 }
 
+
+// ALARM --------------------------------------------------------------------------------------
+
 void Display::AlarmStopped(){
+     PowerSaveOn(false);
     u8g2.firstPage();
     do {
         u8g2.setFont(u8g2_font_streamline_interface_essential_alert_t); 
@@ -577,6 +642,7 @@ void Display::AlarmStopped(){
 }
 
 void Display::AlarmSnooze(){
+     PowerSaveOn(false);
     u8g2.firstPage();
     do {
         u8g2.setFont(u8g2_font_streamline_interface_essential_alert_t); 
@@ -587,6 +653,7 @@ void Display::AlarmSnooze(){
 }
 
 void Display::AlarmTakePills(){
+     PowerSaveOn(false);
     u8g2.firstPage();
     do {
         u8g2.setFont(u8g2_font_streamline_health_beauty_t); 
@@ -598,6 +665,7 @@ void Display::AlarmTakePills(){
 }
 
 void Display::AlarmStatus(int status){
+     PowerSaveOn(false);
     switch (status)
     {
     case 1:
@@ -631,4 +699,27 @@ void Display::AlarmStatus(int status){
     }
 }
 
+void Display::NextAlarm(String time, bool hasTwoDigits){
+     PowerSaveOn(false);
+    int x = 38;
+    if (hasTwoDigits) x = 30;
+ 
+    u8g2.firstPage();
+    do {
+        u8g2.setFont(u8g2_font_streamline_interface_essential_alert_t); 
+        u8g2.drawGlyph(53, 28, 51);
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(16, 46, "Next Alarm at");
+        u8g2.drawStr(x, 62, time.c_str());
+    } while (u8g2.nextPage());
+}
+
+void Display::DisplayText(String text){
+    u8g2.firstPage();
+    do {
+        u8g2.setFont(u8g2_font_helvB10_tr);
+        u8g2.drawStr(10, 46, text.c_str());
+    } while (u8g2.nextPage());
+
+}
 

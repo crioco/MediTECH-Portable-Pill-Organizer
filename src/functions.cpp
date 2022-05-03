@@ -1,6 +1,7 @@
 #include <variable_setup.h>
 #include <functions.h>
 #include "time.h"
+#include <EEPROM.h>
 
 using std::vector; 
 using std::find;
@@ -9,6 +10,7 @@ extern bool isWiFiConnected;
 bool alarmSoundOn;
 bool RTCFound;
 bool AHTFound;
+bool OLEDFound;
 int batteryLevel;
 
 extern bool btnClick1;
@@ -42,6 +44,8 @@ int buzzCurrentMillis = 0;
 
 float temperature;
 float humidity;
+
+extern bool isBluetoothEnabled;
 
 // Initializes the components and variables
 
@@ -106,6 +110,13 @@ void setNTP(){
 
 // Initialize Network & Firebase Connection
 void initNetwork(){
+    
+   if (isBluetoothEnabled){
+    EEPROM.begin(1);
+    EEPROM.write(0, 1);
+    EEPROM.commit();
+    ESP.restart();
+  }
   network = new Network();
   network->WiFiConnect();
   if(WiFi.status() == WL_CONNECTED){
@@ -113,26 +124,6 @@ void initNetwork(){
     setNTP();
     uploadFirestoreQueue();
   }
-}
-
-// --------------------------------------------------------------------------------------------------------------------------
-
-// Returns a vector<int> of Keys of a map<int, int>
-vector<int> getKeys(std::map<int, int> alarmList){
-  vector<int> keys;
-  for(std::map<int, int>::iterator it = alarmList.begin(); it != alarmList.end(); ++it){
-    keys.push_back(it->first);
-  }
-  return keys;
-}
-
-// Returns a vector<int> of Values of a map<int, int>
-vector<int> getValues(std::map<int, int> alarmList){
-  vector<int> values;
-  for(std::map<int, int>::iterator it = alarmList.begin(); it != alarmList.end(); ++it){
-    values.push_back(it->second);
-  }
-  return values;
 }
 
 // ALARM -------------------------------------------------------------------------------------------------------------------
@@ -146,6 +137,9 @@ int alarmTime = 0; // Time of alarm (including time of alarm after snooze)
 
 // Checks for Alarm for current Day and Time
 void checkAlarm(){
+
+  pressDuration1 = pressDuration2 = 0;
+  btnLongPress1 = btnLongPress2 = false;
   
   DateTime now = rtc.now();
   int timeNow = (now.hour() * 100) + now.minute(); // Current Time in the formart of (e.g. 1930 = 19:30 or 7:30 PM)
@@ -201,53 +195,76 @@ void checkAlarm(){
       alarmSoundOn = true;
       // Stop Alarm. BTN 1&2 3 Clicks
       if (btnMulti1 || btnMulti2){
-        btnMulti1 = btnMulti2 = false;
+        btnMulti1 = false; btnMulti2 = false;
         if (nClicks1 == 3 || nClicks2 == 3){
-          nClicks1 = nClicks2 = 0;
+          nClicks1 = 0; nClicks2 = 0;
           Serial.println("[Alarm Stopped]");
           alarmOn = false;
           display->AlarmStopped();
           break;
         }
       }
-
       // Snooze Alarm
-      if (btnDouble1 || btnDouble2){
-        btnDouble1 = btnDouble2 = false;
-        Serial.println("[Alarm Snoozed]");
-        display->AlarmSnooze();
-        break;
-      }  
+      if (btnLongPress1 || btnLongPress2){
+          btnLongPress1 = false; btnLongPress2 = false;
+          if (pressDuration1 >= 4 || pressDuration2 >= 4){
+            pressDuration1 = 0; pressDuration2 = 0;
+            Serial.println("[Alarm Snoozed]");
+            display->AlarmSnooze();
+            break;
+          }
+      } 
     }
 
     alarmSoundOn = false;
-    digitalWrite(vib_pin, LOW);
     delay(2000);
 
     // Snoozed
     if (alarmOn){
+      String minute, meridiem;
+      bool hasTwoDigit;
+      previousAlarmTime = rtc.now();
       now = rtc.now() + TimeSpan(0, 0, snoozeDuration/60000, 0);
-      alarmTime = (now.hour() * 100) + now.minute();
-      previousAlarmTime = now;
-      display->AlarmSnooze();
+      int minutes = now.minute();
+      int hours = now.hour();
+      alarmTime = (hours * 100) + minutes;
+      Serial.println(alarmTime);
       delay(2000);
-      // Display Next Alarm
-      Serial.print("Next Alarm: "); Serial.println(previousAlarmTime.timestamp());
+      
+      if(minutes > 10) minute = String(minutes);
+      else minute = "0" + String(minutes);
+      
+      if(hours >= 12) meridiem = " PM ";
+      else meridiem = " AM ";
+      
+      if(now.twelveHour() < 10) hasTwoDigit = false;
+      else hasTwoDigit = true;
+       
       snoozed++;
+      if(snoozed <= snoozeAmount){
+        display->NextAlarm( (String(now.twelveHour())+":"+minute + meridiem), hasTwoDigit);
+      }
+     
     }
     // Snoozed Limit Reached (Alarm Missed)
     if (snoozed > snoozeAmount){
       alarmOn = false;
-      // Firebase (Missed)
       Serial.println("[Missed]");
       alarmState = 3; // "Missed"
-      display->AlarmStatus(alarmState);
-      delay(2000);
-      if(!network->firestoreDataUpdate(listedAlarmTime.unixtime(), previousAlarmTime.unixtime(), currentAlarms.second, alarmState))
-        addFirestoreQueue(listedAlarmTime.unixtime(), previousAlarmTime.unixtime(),currentAlarms.second, alarmState);
       alarmTime = alarmState = snoozed = 0;
       LEDVec.clear();
       storePrevAlarm(previousAlarmTime.unixtime());
+      LedMatrixOn = false;
+      display->AlarmStatus(alarmState);
+      delay(2000);
+      if(isBluetoothEnabled){
+        addFirestoreQueue(listedAlarmTime.unixtime(), previousAlarmTime.unixtime(),currentAlarms.second, alarmState);
+      }
+      if (WiFi.status() != WL_CONNECTED){
+        initNetwork();
+      }
+      if(!network->firestoreDataUpdate(listedAlarmTime.unixtime(), previousAlarmTime.unixtime(), currentAlarms.second, alarmState))
+        addFirestoreQueue(listedAlarmTime.unixtime(), previousAlarmTime.unixtime(),currentAlarms.second, alarmState);
       return;
     }
 
@@ -255,7 +272,7 @@ void checkAlarm(){
     if (!alarmOn){
       while (true){
         // Display Led Matrix when device is open
-        if (digitalRead(REEDSwitchPin) == LOW) {
+        if (digitalRead(REEDSwitchPin) == HIGH) {
           LedMatrixOn = true;
         }else{
           LedMatrixOn = false;
@@ -265,13 +282,23 @@ void checkAlarm(){
 
         // Take Pills
         if (btnMulti1 || btnMulti2){
-          btnMulti1 = btnMulti2 = false;
+          btnMulti1 = false; btnMulti2 = false;
           if (nClicks1 == 3 || nClicks2 == 3){
-            nClicks1 = nClicks2 = 0;
+            nClicks1 = 0; nClicks2 = 0;
             Serial.println("[Taken]");
             alarmState = 1; // "Taken"
             display->AlarmStatus(alarmState);
             delay(2000);
+            if(isBluetoothEnabled){
+              addFirestoreQueue(listedAlarmTime.unixtime(), previousAlarmTime.unixtime(),currentAlarms.second, alarmState);
+              LedMatrixOn = false;
+              storePrevAlarm(previousAlarmTime.unixtime());
+              alarmTime = alarmState = snoozed = 0;
+              LEDVec.clear();
+            }
+            if (WiFi.status() != WL_CONNECTED){
+              initNetwork();
+            }
             if(!network->firestoreDataUpdate(listedAlarmTime.unixtime(), previousAlarmTime.unixtime(), currentAlarms.second, alarmState))
               addFirestoreQueue(listedAlarmTime.unixtime(), previousAlarmTime.unixtime(),currentAlarms.second, alarmState);
             alarmTime = alarmState = snoozed = 0;
@@ -282,13 +309,23 @@ void checkAlarm(){
 
         // Skip Pills
         if (btnLongPress1 || btnLongPress2){
-          btnLongPress1 = btnLongPress2 = false;
+          btnLongPress1 = false; btnLongPress2 = false;
           if (pressDuration1 >= 4 || pressDuration2 >= 4){
-            pressDuration1 = pressDuration2 = 0;
+            pressDuration1 = 0;  pressDuration2 = 0;
             Serial.println("[Skipped]");
             alarmState = 2; // "Skipped"
             display->AlarmStatus(alarmState);
             delay(2000);
+            if(isBluetoothEnabled){
+              addFirestoreQueue(listedAlarmTime.unixtime(), previousAlarmTime.unixtime(),currentAlarms.second, alarmState);
+              LedMatrixOn = false;
+              storePrevAlarm(previousAlarmTime.unixtime());
+              alarmTime = alarmState = snoozed = 0;
+              LEDVec.clear();
+            }
+            if (WiFi.status() != WL_CONNECTED){
+              initNetwork();
+            }
             if(!network->firestoreDataUpdate(listedAlarmTime.unixtime(), previousAlarmTime.unixtime(), currentAlarms.second, alarmState))
               addFirestoreQueue(listedAlarmTime.unixtime(), previousAlarmTime.unixtime(),currentAlarms.second, alarmState);
             alarmTime = alarmState = snoozed = 0;
@@ -298,8 +335,6 @@ void checkAlarm(){
         }
       }
       LedMatrixOn = false;
-      display->PowerSaveOn(false);
-      displayCountStart = millis(); // Turn on Display
       storePrevAlarm(previousAlarmTime.unixtime());
     }
   }
@@ -320,8 +355,6 @@ void initAHT(){
 
 // Check Temp & Humidity
 void checkHumTemp(){
-
-  if(AHTFound){
     if (millis() - HumTempStartMillis > 5000){
       sensors_event_t humid, temp;
       aht.getEvent(&humid, &temp);
@@ -338,7 +371,6 @@ void checkHumTemp(){
       }
       HumTempStartMillis = millis();
     } 
-  }
 }
 
 // LED DISPLAY ---------------------------------------------------------------------------------------------------------------------------------------------------
@@ -363,7 +395,7 @@ void displayLED (vector<vector<int>>LEDVec){
 int alarmSoundCounter = 0;
 void alarmSound(){
   buzzCurrentMillis = millis();
-  digitalWrite(vib_pin, HIGH);
+  // digitalWrite(vib_pin, HIGH);
   if (buzzCurrentMillis - buzzStartMillis >= 50 && alarmSoundCounter == 0){
     digitalWrite(buzzerPin, HIGH);
     alarmSoundCounter += 1;
@@ -386,7 +418,7 @@ void alarmSound(){
   }
   if (buzzCurrentMillis - buzzStartMillis >= 400 && alarmSoundCounter == 5){
     digitalWrite(buzzerPin, LOW);
-    digitalWrite(vib_pin, LOW);
+    // digitalWrite(vib_pin, LOW);
     alarmSoundCounter += 1;
   }
   if (buzzCurrentMillis - buzzStartMillis >= 900 && alarmSoundCounter == 6){
@@ -395,27 +427,12 @@ void alarmSound(){
   }
 }
 
-// void alarmSound(){
-//   digitalWrite(buzzerPin, HIGH);
-//   delay(50);
-//   digitalWrite(buzzerPin, LOW);
-//   delay(100);
-//   digitalWrite(buzzerPin, HIGH);
-//   delay(50);
-//   digitalWrite(buzzerPin, LOW);
-//   delay(100);
-//   digitalWrite(buzzerPin, HIGH);
-//   delay(50);
-//   digitalWrite(buzzerPin, LOW);
-//   delay(500);
-// }
-
-#define SampleSize 64
+#define SampleSize 80
 int batteryPercent = 0;
 int checkBatteryStart = 0;
 
 void checkBattery(){
-  if (millis() - checkBatteryStart > 10000){
+  if (millis() - checkBatteryStart > 2000){
   int ADCvalue = 0;
   for (int i = 0; i < SampleSize; i++){
     ADCvalue += analogRead(LiPoLevelPin);  
@@ -429,6 +446,12 @@ void checkBattery(){
   batteryLevel = batteryPercent;
   if (batteryLevel > 100) batteryLevel = 100;
   else if (batteryLevel < 0) batteryLevel = 0;
+
+  // Serial.println("ADC: " + String(ADCvalue));
+  // Serial.println("Percent: " + String(batteryPercent));
+  // Serial.println("Voltage: " + String(voltage));
+
+  // display->DisplayText(String(ADCvalue));
 
   // if (batteryLevel < 5){
   //   display->LowBattery();

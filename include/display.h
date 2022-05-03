@@ -25,10 +25,11 @@ class Display{
         void FirebaseConnecting();
         void FirebaseConnected();
         void FirebaseNotConnected();
+        void FirebaseUploading();
+        void FirebaseUpdated(bool state);
 
         void BluetoothEnabled();
         void BluetoothDisabled();
-        void BluetoothReceivedData();
         void BTClientConnect();
         void BTClientDisconnect();
         void BTAuthorized();
@@ -36,6 +37,7 @@ class Display{
 
         void WiFiSettingsUpdate(bool state);
         void DeviceSettingsUpdate(bool state);
+        void PillSettingsUpdate(bool state);
 
         void HumTemp(float humidity, float temperature);
         void HumTempWarning(float humidity, float temperature, int mode);
@@ -51,6 +53,9 @@ class Display{
         void AlarmStopped();
         void AlarmTakePills();
         void AlarmStatus(int status);
+        void NextAlarm(String time, bool hasTwoDigits);
+
+        void DisplayText(String text);
 };
 
 #endif

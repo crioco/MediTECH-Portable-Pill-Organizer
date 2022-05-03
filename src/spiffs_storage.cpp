@@ -7,6 +7,7 @@ extern int snoozeAmount;
 extern String WIFI_SSID;
 extern String WIFI_PASSWORD;
 extern DateTime previousAlarmTime;
+extern Display *display;
 
 struct Pill
 {
@@ -68,8 +69,8 @@ void getPillListfromJSON()
             JsonArray array = doc.as<JsonArray>();
             for (JsonObject obj : array)
             {
-                String pillName = obj["pill_name"];
-                int container_slot = obj["container_slot"];
+                String pillName = obj["pillName"];
+                int container_slot = obj["containerSlot"];
 
                 JsonArray days = obj["days"];
                 std::vector<int> daysVector;
@@ -108,8 +109,8 @@ void readDataStorageJSON(){
         Serial.println("data_storage.json");
         for (JsonObject obj : array)
         {
-            String pillName = obj["pill_name"];
-            int container_slot = obj["container_slot"];
+            String pillName = obj["pillName"];
+            int container_slot = obj["containerSlot"];
 
             JsonArray days = obj["days"];
             std::vector<int> daysVector;
@@ -207,7 +208,7 @@ boolean addFirestoreQueue(int alarmTimeUnix, int takenTimeUnix, std::vector<std:
     for (std::vector<std::pair<String, int>>::iterator it = alarmPills.begin(); it != alarmPills.end(); ++it){
         StaticJsonDocument<384> tempDoc;
         JsonObject pillNested = tempDoc.to<JsonObject>();
-        pillNested["pill_name"] = it->first;
+        pillNested["pillName"] = it->first;
         pillNested["dosage"] = it->second;
 
         pillArray.add(pillNested);
@@ -250,7 +251,7 @@ void readFirestoreQueue(){
 
                 std::map<String, int> pillMap;
                 for (JsonObject alarmObj: pillArray){
-                    String pillName = alarmObj["pill_name"];
+                    String pillName = alarmObj["pillName"];
                     int dosage = alarmObj["dosage"];
                     pillMap.insert({pillName, dosage});
                 }
@@ -281,6 +282,7 @@ boolean uploadFirestoreQueue(){
             result = false;
         }
         else if (!doc.isNull()){
+            display->FirebaseUploading();
             Serial.println("Uploading Queued Data to Firestore...");
             JsonArray array = doc.as<JsonArray>();
             for (JsonObject obj : array){
@@ -291,7 +293,7 @@ boolean uploadFirestoreQueue(){
                 
                 std::vector<std::pair<String, int>> pillVector;
                 for (JsonObject alarmObj: pillArray){
-                    String pillName = alarmObj["pill_name"];
+                    String pillName = alarmObj["pillName"];
                     int dosage = alarmObj["dosage"];
                     pillVector.push_back(std::make_pair(pillName, dosage));
                 }
@@ -477,14 +479,6 @@ void loadConfigJSON(){
     snoozeDuration = sDuration;
     snoozeAmount = sAmount;
     previousAlarmTime = DateTime(prevAlarmUnix);
-
-    // Serial.println(WIFI_SSID);
-    // Serial.println(WIFI_PASSWORD);
-    // Serial.println(ringDuration);
-    // Serial.println(snoozeDuration);
-    // Serial.println(snoozeAmount);
-    // Serial.println(previousAlarmTime.timestamp());
-
 
     Serial.println("Data loaded from config.json");
     file.close();

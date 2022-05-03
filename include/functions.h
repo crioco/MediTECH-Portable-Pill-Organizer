@@ -1,11 +1,11 @@
 #ifndef FUNCTIONS_H 
 #define FUNCTIONS_H 
 
-#define SDA_1 21 // ORANGE
-#define SCL_1 22 // GREEN
+#define SDA_1 21 // YELLOW
+#define SCL_1 22 // WHITE
 
-#define SDA_2 19 // ORANGE
-#define SCL_2 18 // GREEN
+#define SDA_2 19 // YELLOW
+#define SCL_2 18 // WHITE
 
 #define buzzerPin 13
 #define vib_pin 12

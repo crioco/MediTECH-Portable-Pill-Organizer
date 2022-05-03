@@ -173,40 +173,33 @@ boolean Network::firestoreDataUpdate(int alarmTimeUnix, int takenTimeUnix, std::
 
         content.set("fields/alarmTime/timestampValue", alarmTimestamp); // Date have to be in GMT+0 (e.g 2022-04-03T13:34:00Z)
         content.set("fields/takenTime/timestampValue", takenTimestamp);
-
-        // // Tries to Patch (Update) the Data if it already exists
-        // if(Firebase.Firestore.patchDocument(&fbdo, FIREBASE_PROJECT_ID,"", documentPath.c_str(), content.raw(), 
-        //     "pills.pill_name1.dosage,
-        //      pills.pill_name1.isTaken,
-        //      isMissed"))
-        //     {
-        //     Serial.printf("ok\ndocument updated\n%s\n\n", fbdo.payload().c_str());
-        //     return;
-        // }else{
-        //     Serial.println(fbdo.errorReason());
-        // }
-
-        // Creates a new Document in Firestore database
-        // if(Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID,"", documentPath.c_str(), content.raw())){
-        //     Serial.printf("ok\ndocument created\n%s\n\n", fbdo.payload().c_str());
-        //     return true;
-        // }else{
-        //     Serial.println(fbdo.errorReason());
-        //     return false;
-        // }
         
         int uploadStartMillis = millis();
+
+        if (Firebase.Firestore.getDocument(&fbdo, FIREBASE_PROJECT_ID, "", documentPath.c_str())){
+            Serial.printf("ok\n%s\n\n", fbdo.payload().c_str());
+            Serial.println("Document Already Exist.");
+            display->FirebaseUpdated(true);
+            delay(2000);
+            return true;
+        }
+        else
+            Serial.println(fbdo.errorReason());
         
         // Creates a new Document in Firestore database
         while(millis() - uploadStartMillis < 60000){
             if (Firebase.Firestore.createDocument(&fbdo, FIREBASE_PROJECT_ID,"", documentPath.c_str(), content.raw())){
                 Serial.printf("[Success] Document Created in Firestore.\n%s\n\n", fbdo.payload().c_str());
+                display->FirebaseUpdated(true);
+                delay(2000);
                 return true;
             } else Serial.println(fbdo.errorReason());
             delay(3000);
         } 
         
         Serial.println("[Failed] Unable to Create Document in Firestore.");
+        display->FirebaseUpdated(false);
+        delay(2000);
         return false;
         
         

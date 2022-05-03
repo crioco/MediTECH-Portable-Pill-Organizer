@@ -76,11 +76,11 @@ void Bluetooth::readBluetoothSerial(){
             if (writeDataStorageJSON(json)){
                 getPillListfromJSON();
                 SerialBT.println("Pill Settings Updated.");
-                display->DeviceSettingsUpdate(true);
+                display->PillSettingsUpdate(true);
                 delay(2000);
             } else {
-                SerialBT.println("Failed to Update Data Storage.");
-                display->DeviceSettingsUpdate(false);
+                SerialBT.println("Failed to Update Pill Settings.");
+                display->PillSettingsUpdate(false);
                 delay(2000);
             }
             break;

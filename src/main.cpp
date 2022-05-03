@@ -76,27 +76,15 @@ bool isDeviceOpen = false;
 bool LedMatrixOn = false;
 extern std::vector<std::vector<int>> LEDVec;
 
+extern bool AHTFound;
 extern float temperature;
 extern float humidity;
+extern bool OLEDFound;
 
-RTC_DATA_ATTR int bootCount = 0;
+// RTC_DATA_ATTR int bootCount = 0;
 
 // -----------------------------------------------------------------------------------------------------------------------------
-// std::vector<std::vector<int>> VEC = {{1, 3}, {2, 0}, {3, 1}, {4, 2}, {5, 4}}; // FOR TESTING
-
-void print_wakeup_reason(){
-  esp_sleep_wakeup_cause_t wakeup_reason;
-  wakeup_reason = esp_sleep_get_wakeup_cause();
-  switch(wakeup_reason)
-  {
-    case 1  : Serial.println("Wakeup caused by external signal using RTC_IO"); break;
-    case 2  : Serial.println("Wakeup caused by external signal using RTC_CNTL"); break;
-    case 3  : Serial.println("Wakeup caused by timer"); break;
-    case 4  : Serial.println("Wakeup caused by touchpad"); break;
-    case 5  : Serial.println("Wakeup caused by ULP program"); break;
-    default : Serial.println("Wakeup was not caused by deep sleep"); break;
-  }
-}
+std::vector<std::vector<int>> VEC = {{1, 4}, {2, 4}, {3, 4}, {4, 4}, {5, 4}}; // FOR TESTING
 
 void loop_2(void * pvParameters){
   //Loop
@@ -116,12 +104,25 @@ void loop_2(void * pvParameters){
         button2.tick();
       } 
       digitalWrite(buzzerPin, LOW);
+      digitalWrite(vib_pin, LOW);
       alarmSoundCounter = 0;
     }
 
     // Display Led Matrix
     if (LedMatrixOn){
       displayLED(LEDVec);
+    }
+
+    // RESTART
+    if (btnMulti3){
+      btnMulti3 = false;
+      switch (nClicks3)
+      {
+      case 4:
+        ESP.restart();
+        break;
+      }
+      nClicks3 = 0;
     }
 
     // Serial.print("Core: "); Serial.println(xPortGetCoreID());
@@ -152,12 +153,8 @@ void setup() {
   esp_sleep_enable_ext0_wakeup((gpio_num_t)button3_pin, 0);
   rtc_gpio_pullup_en((gpio_num_t)button3_pin);
 
-  ++bootCount;
-  Serial.printf("Booted %d times\n", bootCount);
-  print_wakeup_reason();
-
   pinMode(buzzerPin, OUTPUT);
-  pinMode(vib_pin, OUTPUT);
+  // pinMode(vib_pin, OUTPUT);
 
   // LiPo Battery Level
   analogReadResolution(11);
@@ -214,198 +211,265 @@ void setup() {
   initRTC();
   initAHT();
   initSPIFFS();
+  checkBattery();
   display->initDisplay();
   getPillListfromJSON();
   loadConfigJSON();
 
-  // // ---------------------------------------------------
+  // ---------------------------------------------------
 
   // If restarted after WiFi on while BLE on
   EEPROM.begin(1);
+
   if (EEPROM.read(0) == 1){
     EEPROM.write(0, 0);
     EEPROM.commit();
     initNetwork();
+  } else if (EEPROM.read(0) == 2){
+    EEPROM.write(0, 0);
+    EEPROM.commit();
+    bluetooth->initBluetooth();
   }
 
   // Turn on Display
-  display->PowerSaveOn(false);
+  if(OLEDFound) display->PowerSaveOn(false);
 }
-
-int x = 1;
-
+// int x = 1;
 void loop() {
-  // Checks Battery Level in Percentage (3.3 V - 4.11 V)
-  checkBattery();
 
-  // alarmSoundOn = true;
+  if (OLEDFound) {
+    // Checks Battery Level in Percentage (3.3 V - 4.11 V)
+    checkBattery();
 
-  display->displayTime();
-  checkAlarm();
-  checkHumTemp();
+    display->displayTime();
+    checkAlarm();
+    checkHumTemp();
 
-  if (isBluetoothEnabled){
-    if (!bluetoothAuth){
-      bluetooth->readAuth();
-    } else {
-      bluetooth->readBluetoothSerial();
-    } 
-  }
-
-  if (isBTClientConnected){
-    isBTClientConnected = false;
-    display->BTClientConnect();
-    delay(2000);
-  } else if(isBTClientDisconnected){
-    isBTClientDisconnected = false;
-    display->BTClientDisconnect();
-    delay(2000);
-  }
-
-  // TURN DISPLAY ON FROM POWER SAVE
-  if (btnClick1 == true || btnClick2 == true){
-    display->PowerSaveOn(false);
-    btnClick1 = btnClick2 = false;
-  }
-
-  // DISPLAY POWER SAVE AFTER 30 SECONDS => Turn Display OFF
-  if ((millis() - displayCountStart) > DisplaySleepDelay){
-    display->PowerSaveOn(true);
-  }
-
-  // WiFi ON/OFF
-  if (btnMulti1){
-    // display->PowerSaveOn(false);
-    btnMulti1 = false;
-    switch (nClicks1)
-    {
-    case 3:
-      if (isWiFiConnected){
-        network->WiFiDisconnect();
+    if (isBluetoothEnabled){
+      if (!bluetoothAuth){
+        bluetooth->readAuth();
       } else {
-        if (isBluetoothEnabled){
-          EEPROM.write(0, 1);
-          EEPROM.commit();
-
-          Serial.println("BLUETOOTH OFF");
-          bluetooth->BTDisconnect();
-          Serial.println("RESETING DEVICE");
-          delay(2000);
-          ESP.restart();
-        } else initNetwork();    
-      }
-      break;
-
-    case 4:
-      displayPillList();
-      break;
-    case 5:
-      readFirestoreQueue();  
-      break;
-    case 6:
-      readDataStorageJSON();
-      break;
-    } 
-    nClicks1 = 0;  
-  }
-
-  // BLUETOOTH ON/OFF
-  if (btnMulti2){
-    // display->PowerSaveOn(false);
-    btnMulti2 = false;
-    switch (nClicks2)
-    {
-    case 3:
-      if (!isBluetoothEnabled){
-        if(isWiFiConnected){
-          network->WiFiDisconnect();
-          Serial.println("BLUETOOTH ON");
-          bluetooth->initBluetooth();
-        } else{
-           bluetooth->initBluetooth();
-        }
+        bluetooth->readBluetoothSerial();
       } 
-      else {
-        bluetooth->BTDisconnect();     
-        ESP.restart();
-      }
-      break;
-    case 5:
-      Serial.println("Uploading Queue to Firestore");
-      uploadFirestoreQueue();
-      break;
     }
-    nClicks2 = 0;
-  }
 
-  // RESTART
-  if (btnMulti3){
-    btnMulti3 = false;
-    switch (nClicks3)
-    {
-    case 3:
-      ESP.restart();
-      break;
+    if (isBTClientConnected){
+      isBTClientConnected = false;
+      display->BTClientConnect();
+      delay(2000);
+    } else if(isBTClientDisconnected){
+      isBTClientDisconnected = false;
+      display->BTClientDisconnect();
+      delay(2000);
     }
-    nClicks3 = 0;
+
+    // TURN DISPLAY ON FROM POWER SAVE
+    if (btnClick1 == true || btnClick2 == true){
+      display->PowerSaveOn(false);
+      btnClick1 = btnClick2 = false;
+    }
+
+    // DISPLAY POWER SAVE AFTER 30 SECONDS => Turn Display OFF
+    if ((millis() - displayCountStart) > DisplaySleepDelay){
+      display->PowerSaveOn(true);
+    }
+
+    // WiFi ON/OFF
+    if (btnMulti1){
+      btnMulti1 = false;
+      switch (nClicks1)
+      {
+      case 3:
+        if (isWiFiConnected){
+          network->WiFiDisconnect();
+        } else {
+            initNetwork();   
+          }
+          break;
+      }
+        
+      nClicks1 = 0;  
+    }
+
+    // BLUETOOTH ON/OFF
+    if (btnMulti2){
+      btnMulti2 = false;
+      switch (nClicks2)
+      {
+      case 3:
+        if (!isBluetoothEnabled){
+          if(isWiFiConnected){
+            EEPROM.write(0, 2);
+            EEPROM.commit();
+            ESP.restart();
+          } else{
+            bluetooth->initBluetooth();
+          }
+        } 
+        else {
+          bluetooth->BTDisconnect();     
+          ESP.restart();
+        }
+        break;
+      case 5:
+        Serial.println("Uploading Queue to Firestore");
+        uploadFirestoreQueue();
+        break;
+      }
+      nClicks2 = 0;
+    }
+
+    // SHOW DEVICE HUMIDITY AND TEMPERATURE
+    if (btnDouble1 || btnDouble2){
+      btnDouble1 = false; btnDouble2 =false;
+      display->HumTemp(humidity, temperature);
+      delay(3000);
+      display->PowerSaveOn(false);
+    }
+
   }
 
   // TURN DEEP SLEEP ON
   if(btnLongPress3){
-    // display->PowerSaveOn(false);
     btnLongPress3 = false;
     if (pressDuration3 == 5){
       pressDuration3 = 0;
       display->PowerOFF();
       delay(2000);
       display->PowerSaveOn(true);
+      delay(2000);
       esp_sleep_enable_timer_wakeup(30 * 1000000);
       esp_deep_sleep_start();
     }
   }
 
-  // SHOW DEVICE HUMIDITY AND TEMPERATURE
-  if (btnDouble1){
-    btnDouble1 = false;
-    // display->PowerSaveOn(false);
-    display->HumTemp(humidity, temperature);
-    delay(3000);
-    display->PowerSaveOn(false);
-  }
-
   // if (btnClick1 == true){
+  //   btnClick1 = false;
   //   x++;
-  //   if (x > 9) x=1;
-  // } btnClick1 = false;
+  //   if (x > 41) x=1;
+  // } 
   // switch (x)
   // {
-  // case 1:
- 
-  //   break;
-  // case 2:
-
-  //   break;
-  // case 3:
-
-  //   break;
-  // case 4:
-  
-  //   break;
-  // case 5:
- 
-  //   break;
-  // case 6:
-
-  //   break;
-  // case 7:
-
-  //   break;
-  // case 8:
-
-  //   break;
-  // case 9:
-
-  //   break;
+  //   case 1:
+  //     display->AlarmSnooze();
+  //     break;
+  //   case 2:
+  //     display->ComponentStatus();
+  //     break;
+  //   case 3:
+  //     display->AlarmStopped();
+  //     break;
+  //   case 4:
+  //     display->AlarmTakePills();
+  //     break;
+  //   case 5:
+  //     display->BluetoothDisabled();
+  //     break;
+  //     case 6:
+  //     display->BluetoothEnabled();
+  //     break;
+  //     case 8:
+  //     display->BTAuthorized();
+  //     break;
+  //     case 9:
+  //     display->BTClientConnect();
+  //     break;
+  //     case 10:
+  //     display->BTClientDisconnect();
+  //     break;
+  //     case 11:
+  //     display->BTDenied();
+  //     break;
+  //     case 12:
+  //     display->DeviceSettingsUpdate(true);
+  //     break;
+  //     case 13:
+  //     display->DeviceSettingsUpdate(true);
+  //     break;
+  //     case 14:
+  //     display->FirebaseConnected();
+  //     break;
+  //     case 15:
+  //     display->FirebaseConnecting();
+  //     break;
+  //     case 16:
+  //     display->FirebaseNotConnected();
+  //     break;
+  //     case 17:
+  //     display->FirebaseUpdated(true);
+  //     break;
+  //     case 18:
+  //     display->FirebaseUpdated(false);
+  //     break;
+  //     case 19:
+  //     display->FirebaseUploading();
+  //     break;
+  //     case 20:
+  //     display->FromReset();
+  //     break;
+  //     case 21:
+  //     display->LowBattery();
+  //     break;
+  //     case 22:
+  //     display->NTPConnected();
+  //     break;
+  //     case 23:
+  //     display->NTPConnecting();
+  //     break;
+  //     case 24:
+  //     display->NTPNotConnected();
+  //     break;
+  //     case 25:
+  //     display->PillSettingsUpdate(true);
+  //     break;
+  //     case 26:
+  //     display->PillSettingsUpdate(false);
+  //     break;
+  //     case 27:
+  //     display->PowerOFF();
+  //     break;
+  //     case 28:
+  //     display->WiFiConnected();
+  //     break;
+  //     case 29:
+  //     display->WiFiConnecting();
+  //     break;
+  //     case 30:
+  //     display->WiFiDisabled();
+  //     break;
+  //     case 31:
+  //     display->WiFiDisconnected();
+  //     break;
+  //     case 32:
+  //     display->WiFiEnabled();
+  //     break;
+  //     case 33:
+  //     display->WiFiNotConnected();
+  //     break;
+  //     case 34:
+  //     display->WiFiReconnecting();
+  //     break;
+  //     case 35:
+  //     display->WiFiSettingsUpdate(true);
+  //     break;
+  //     case 36:
+  //     display->WiFiSettingsUpdate(false);
+  //     break;
+  //     case 37:
+  //     display->AlarmStatus(1);
+  //     break;
+  //     case 38:
+  //     display->AlarmStatus(2);
+  //     break;
+  //     case 39:
+  //     display->AlarmStatus(3);
+  //     break;
+  //     case 40:
+  //     display->HumTempWarning(60, 35, 2);
+  //     break;
+  //     case 41:
+  //     display->NextAlarm("3:00 PM", false);
+  //     break;
   // }
 }
 
