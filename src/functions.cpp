@@ -364,10 +364,12 @@ void checkHumTemp(){
 
       while (humidity >= humdTH){
         display->HumTempWarning(humidity, temperature, 1);
+        aht.getEvent(&humid, &temp);
       }
 
       while (temperature >= tempTH){
         display->HumTempWarning(humidity, temperature, 2);
+        aht.getEvent(&humid, &temp);
       }
       HumTempStartMillis = millis();
     } 

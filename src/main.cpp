@@ -146,6 +146,7 @@ void setup() {
   // ---------------------------------------------------
   
   Serial.begin(115200);
+  Serial.setRxBufferSize(2048);
 
   Wire.begin(); // Initialize default I2C pins (GPIO 21 & 22) 
   Wire1.begin(SDA_2, SCL_2); // Initialize second I2C pins (GPIO 19 & 18)
@@ -338,7 +339,7 @@ void loop() {
       delay(2000);
       display->PowerSaveOn(true);
       delay(2000);
-      esp_sleep_enable_timer_wakeup(30 * 1000000);
+      // esp_sleep_enable_timer_wakeup(30 * 1000000);
       esp_deep_sleep_start();
     }
   }

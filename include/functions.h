@@ -8,7 +8,7 @@
 #define SCL_2 18 // WHITE
 
 #define buzzerPin 13
-#define vib_pin 12
+// #define vib_pin 12
 
 #define button1_pin 23
 #define button2_pin 3
